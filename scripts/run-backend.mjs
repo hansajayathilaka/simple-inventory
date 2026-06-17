@@ -21,7 +21,12 @@ if (!existsSync(binPath)) {
 const host = process.env.PB_HOST || "127.0.0.1";
 const port = process.env.PB_PORT || "8090";
 
-const child = spawn(binPath, ["serve", "--http", `${host}:${port}`], {
+// Enable verbose dev logging (request logs + SQL + errors to the console) by
+// default for local development. Set PB_DEV=0 to disable.
+const args = ["serve", "--http", `${host}:${port}`];
+if (process.env.PB_DEV !== "0") args.push("--dev");
+
+const child = spawn(binPath, args, {
   cwd: backendDir,
   stdio: "inherit",
 });
