@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+**/dist/
+**/build/
+release/
+
+# PocketBase runtime, binary & bundled docs from the release zip
+backend/pb_data/
+backend/pocketbase
+backend/pocketbase.exe
+backend/CHANGELOG.md
+backend/LICENSE.md
+
+# Env & local config
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Electron packaging artifacts
+electron/out/
