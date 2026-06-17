@@ -52,13 +52,13 @@ Built in phases — see the build plan. Implemented so far:
 
 - [x] Phase 0 — Project scaffolding & tooling
 - [x] Phase 1 — Backend data model & PocketBase setup
-- [ ] Phase 2 — Auth & user management
-- [ ] Phase 3 — Product management + dynamic attributes
-- [ ] Phase 4 — Inventory, suppliers & restock
-- [ ] Phase 5 — Customer management
-- [ ] Phase 6 — Sales / POS
-- [ ] Phase 7 — Returns / refunds
-- [ ] Phase 8 — Reports & exports
-- [ ] Phase 9 — Receipt / invoice printing
-- [ ] Phase 10 — Electron packaging (Windows)
+- [x] Phase 2 — Auth & user management
+- [x] Phase 3 — Product management + dynamic attributes
+- [x] Phase 4 — Inventory, suppliers & restock
+- [x] Phase 5 — Customer management
+- [x] Phase 6 — Sales / POS
+- [x] Phase 7 — Returns / refunds
+- [x] Phase 8 — Reports & exports
+- [x] Phase 9 — Receipt / invoice printing
+- [x] Phase 10 — Electron packaging (Windows)
 - [ ] Phase 11 — Testing, hardening & docs

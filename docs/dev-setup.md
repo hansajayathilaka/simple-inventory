@@ -60,6 +60,34 @@ VITE_PB_URL=http://192.168.1.10:8090
 npm run dev          # backend + frontend
 ```
 
+## 4. Desktop app (Electron)
+
+Run the desktop shell in development (it spawns the PocketBase sidecar and loads
+the Vite dev server):
+
+```bash
+npm run backend:download         # once, if not already done
+npm run frontend                 # terminal 1 (Vite on :5173)
+npm --workspace electron install # once
+npm --workspace electron start   # terminal 2 (Electron)
+```
+
+### Build the Windows installer
+
+On a **Windows** machine (electron-builder targets the host OS):
+
+```bash
+npm run backend:download         # fetches pocketbase.exe into backend/
+npm --workspace electron install
+npm run dist                     # builds the React app + NSIS installer
+```
+
+The installer is written to `electron/out/`. The packaged app bundles the
+PocketBase binary, migrations and hooks as resources and stores its database in
+the user's app-data directory. On first launch the bootstrap migration creates a
+default superuser (`admin@shop.local` / `admin12345`) and owner
+(`owner@shop.local` / `owner12345`) — **change these after first login.**
+
 ## Project structure
 
 ```
