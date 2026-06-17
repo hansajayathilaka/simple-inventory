@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Skip downloading the Electron binary during npm install — CI only builds the
+# web frontend and tests the backend.
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  frontend:
+    name: Frontend build & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run frontend:build
+
+  backend:
+    name: Backend e2e smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download PocketBase
+        run: npm run backend:download
+      - name: Apply migrations
+        working-directory: backend
+        run: ./pocketbase migrate up
+      - name: Start server
+        working-directory: backend
+        run: |
+          ./pocketbase serve --http 127.0.0.1:8090 &
+          echo $! > /tmp/pb.pid
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8090/api/health > /dev/null; then
+              echo "healthy"; exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy"; exit 1
+      - name: Run smoke test
+        run: node backend/tests/smoke.mjs
+        env:
+          PB_URL: http://127.0.0.1:8090
+      - name: Stop server
+        if: always()
+        run: kill "$(cat /tmp/pb.pid)" || true

@@ -61,4 +61,15 @@ Built in phases — see the build plan. Implemented so far:
 - [x] Phase 8 — Reports & exports
 - [x] Phase 9 — Receipt / invoice printing
 - [x] Phase 10 — Electron packaging (Windows)
-- [ ] Phase 11 — Testing, hardening & docs
+- [x] Phase 11 — Testing, hardening & docs
+
+## Testing
+
+- **Backend e2e:** `node backend/tests/smoke.mjs` (against a running server)
+  exercises auth/roles, dynamic attribute validation, restock, checkout and
+  returns — 16 assertions.
+- **Frontend:** `npm run frontend:build` (type-checks + builds).
+- **CI:** `.github/workflows/ci.yml` runs both on every PR to `main`.
+
+> Default first-run logins (change after first login): owner
+> `owner@shop.local` / `owner12345`, admin `admin@shop.local` / `admin12345`.
