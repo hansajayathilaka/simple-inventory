@@ -14,20 +14,24 @@ export interface ListOptions {
 
 export function collection<T extends RecordModel>(name: string) {
   const c = pb.collection(name);
+
+  // Build a query object that omits undefined values, otherwise the SDK
+  // serializes them as the literal string "undefined" (e.g. `filter=undefined`),
+  // which PocketBase rejects with a 400.
+  const query = (opts: ListOptions) => {
+    const q: Record<string, string> = { sort: opts.sort ?? "-created" };
+    if (opts.filter != null) q.filter = opts.filter;
+    if (opts.expand != null) q.expand = opts.expand;
+    return q;
+  };
+
   return {
     list: (opts: ListOptions = {}) =>
-      c.getList<T>(opts.page ?? 1, opts.perPage ?? 50, {
-        sort: opts.sort ?? "-created",
-        filter: opts.filter,
-        expand: opts.expand,
-      }),
+      c.getList<T>(opts.page ?? 1, opts.perPage ?? 50, query(opts)),
     all: (opts: Omit<ListOptions, "page" | "perPage"> = {}) =>
-      c.getFullList<T>({
-        sort: opts.sort ?? "-created",
-        filter: opts.filter,
-        expand: opts.expand,
-      }),
-    one: (id: string, expand?: string) => c.getOne<T>(id, { expand }),
+      c.getFullList<T>(query(opts)),
+    one: (id: string, expand?: string) =>
+      c.getOne<T>(id, expand ? { expand } : {}),
     create: (data: Partial<T> | FormData) => c.create<T>(data),
     update: (id: string, data: Partial<T> | FormData) => c.update<T>(id, data),
     remove: (id: string) => c.delete(id),
