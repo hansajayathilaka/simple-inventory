@@ -1,0 +1,23 @@
+{
+  "name": "simple-inventory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shop management & POS system (PocketBase + React + Electron)",
+  "workspaces": [
+    "frontend",
+    "electron"
+  ],
+  "scripts": {
+    "backend:download": "node scripts/download-pocketbase.mjs",
+    "backend": "node scripts/run-backend.mjs",
+    "backend:seed": "node backend/seed/seed.mjs",
+    "frontend": "npm --workspace frontend run dev",
+    "frontend:build": "npm --workspace frontend run build",
+    "dev": "node scripts/dev.mjs",
+    "dist": "npm run frontend:build && npm --workspace electron run dist"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
