@@ -1,11 +1,9 @@
-import { useMemo, useState } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RecordModel } from "pocketbase";
 import Modal from "./Modal";
+import Pagination from "./Pagination";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { errorMessage } from "../lib/errors";
 import type { collection } from "../services/crud";
 
@@ -62,10 +60,8 @@ export default function CrudPage<T extends RecordModel>({
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [error, setError] = useState("");
 
-  const { data, isLoading } = useQuery({
-    queryKey: [queryKey],
-    queryFn: () => service.all({ sort }),
-  });
+  const { items, isLoading, page, setPage, totalPages, totalItems, isFetching } =
+    usePaginatedList<T>(service, [queryKey], { sort });
 
   const save = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
@@ -113,7 +109,7 @@ export default function CrudPage<T extends RecordModel>({
     save.mutate(payload);
   };
 
-  const rows = useMemo(() => data ?? [], [data]);
+  const rows = items;
 
   return (
     <div>
@@ -178,6 +174,14 @@ export default function CrudPage<T extends RecordModel>({
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
 
       <Modal
         title={`${editing ? "Edit" : "New"} ${title.replace(/s$/, "")}`}

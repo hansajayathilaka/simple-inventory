@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import DynamicAttributeField from "./DynamicAttributeField";
 import {
   attributesService,
@@ -49,9 +51,22 @@ export default function ProductsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["products"],
-    queryFn: () => productsService.all({ sort: "name", expand: "category,base_uom" }),
+  const q = search.trim().replace(/["\\]/g, "");
+  const filter = q
+    ? `(name ~ "${q}" || sku ~ "${q}" || barcode ~ "${q}")`
+    : undefined;
+  const {
+    items: products,
+    isLoading,
+    page,
+    setPage,
+    totalPages,
+    totalItems,
+    isFetching,
+  } = usePaginatedList<Product>(productsService, ["products", "list"], {
+    sort: "name",
+    expand: "category,base_uom",
+    filter,
   });
   const { data: categories } = useQuery({
     queryKey: ["categories"],
@@ -135,17 +150,7 @@ export default function ProductsPage() {
     setOpen(true);
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = products ?? [];
-    if (!q) return list;
-    return list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.barcode ?? "").toLowerCase().includes(q)
-    );
-  }, [products, search]);
+  const filtered = products;
 
   return (
     <div>
@@ -163,7 +168,10 @@ export default function ProductsPage() {
         <input
           placeholder="Search by name, SKU or barcode…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -217,6 +225,14 @@ export default function ProductsPage() {
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
 
       <Modal
         title={editing ? "Edit product" : "New product"}

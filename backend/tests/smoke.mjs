@@ -148,6 +148,25 @@ async function main() {
   const invoice2 = await api("GET", `/api/collections/invoices/records/${checkout.data.id}`, null, ot);
   assert(invoice2.data.status === "partially_returned", "invoice status becomes partially_returned");
 
+  // app_settings: seeded singleton, owner-editable
+  const settings = await api("GET", "/api/collections/app_settings/records", null, ot);
+  assert(settings.ok && settings.data.items.length === 1, "app_settings has a seeded singleton row");
+  const settingsId = settings.data.items[0].id;
+  const updSettings = await api(
+    "PATCH",
+    `/api/collections/app_settings/records/${settingsId}`,
+    { company_name: "Smoke Shop" },
+    ot
+  );
+  assert(updSettings.ok && updSettings.data.company_name === "Smoke Shop", "owner can update app_settings");
+  const cashierSettings = await api(
+    "PATCH",
+    `/api/collections/app_settings/records/${settingsId}`,
+    { company_name: "Hacked" },
+    ct
+  );
+  assert(!cashierSettings.ok, "cashier cannot update app_settings");
+
   console.log(`\nAll ${passed} assertions passed.`);
 }
 

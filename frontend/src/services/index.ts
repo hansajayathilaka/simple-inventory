@@ -1,6 +1,7 @@
 import { pb } from "../lib/pocketbase";
 import { collection } from "./crud";
 import type {
+  AppSettings,
   AttributeDefinition,
   Brand,
   Category,
@@ -45,6 +46,19 @@ export const purchaseOrderItemsService = collection<PurchaseOrderItem>(
 );
 export const returnsService = collection<Return>("returns");
 export const returnItemsService = collection<ReturnItem>("return_items");
+
+// app_settings is a single-row collection. These helpers always read/write the
+// first (and only) record.
+export const settingsService = {
+  get: async (): Promise<AppSettings | null> => {
+    const list = await pb
+      .collection("app_settings")
+      .getList<AppSettings>(1, 1);
+    return list.items[0] ?? null;
+  },
+  update: (id: string, data: Partial<AppSettings> | FormData) =>
+    pb.collection("app_settings").update<AppSettings>(id, data),
+};
 
 // Map a lookup collection name to its service (used by dynamic relation attrs).
 export const lookupServices: Record<string, ReturnType<typeof collection>> = {

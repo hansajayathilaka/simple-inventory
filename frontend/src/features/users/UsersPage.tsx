@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import { usersService } from "../../services";
 import type { User } from "../../types";
 import { errorMessage } from "../../lib/errors";
@@ -12,10 +14,8 @@ export default function UsersPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => usersService.all({ sort: "name" }),
-  });
+  const { items: users, isLoading, page, setPage, totalPages, totalItems, isFetching } =
+    usePaginatedList<User>(usersService, ["users"], { sort: "name" });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -94,7 +94,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {(users ?? []).map((u) => (
+              {users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
@@ -129,6 +129,14 @@ export default function UsersPage() {
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
 
       <Modal
         title={editing ? "Edit user" : "New user"}

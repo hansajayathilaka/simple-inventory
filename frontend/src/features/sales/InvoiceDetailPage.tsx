@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoiceItemsService, invoicesService } from "../../services";
+import { useSettings } from "../../settings/SettingsContext";
 import { money, dateTime } from "../../lib/format";
+import { buildReceiptHTML } from "../../lib/receipt";
+import { printHTML } from "../../lib/print";
 
 export default function InvoiceDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { settings } = useSettings();
 
   const { data: invoice } = useQuery({
     queryKey: ["invoice", id],
@@ -21,6 +25,30 @@ export default function InvoiceDetailPage() {
 
   if (!invoice) return <div className="empty">Loading…</div>;
 
+  const printReceipt = () => {
+    const html = buildReceiptHTML(settings, {
+      number: invoice.number,
+      date: dateTime(invoice.created),
+      cashier: (invoice.expand?.cashier as { name?: string })?.name,
+      customer: (invoice.expand?.customer as { name?: string })?.name,
+      lines: (items ?? []).map((it) => ({
+        name: (it.expand?.product as { name?: string })?.name ?? "—",
+        qty: it.qty,
+        unit_price: it.unit_price,
+        line_total: it.line_total,
+      })),
+      subtotal: invoice.subtotal,
+      discount: invoice.discount_total,
+      tax: invoice.tax_total,
+      total: invoice.grand_total,
+      payment: invoice.payment_method,
+    });
+    printHTML(html, {
+      silent: !!settings?.printers?.silent,
+      deviceName: settings?.printers?.receiptPrinter || undefined,
+    }).catch((e) => alert(String(e)));
+  };
+
   return (
     <div>
       <div className="page-head no-print">
@@ -30,7 +58,7 @@ export default function InvoiceDetailPage() {
           </button>
         </div>
         <div className="inline">
-          <button className="btn btn-primary" onClick={() => window.print()}>
+          <button className="btn btn-primary" onClick={printReceipt}>
             Print receipt
           </button>
         </div>
@@ -38,7 +66,7 @@ export default function InvoiceDetailPage() {
 
       <div className="card receipt" style={{ margin: "0 auto" }}>
         <div style={{ textAlign: "center" }}>
-          <h2 style={{ marginBottom: 2 }}>Simple Inventory</h2>
+          <h2 style={{ marginBottom: 2 }}>{settings?.company_name ?? "Simple Inventory"}</h2>
           <div className="muted">Sales Receipt</div>
         </div>
         <hr />

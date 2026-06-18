@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import {
   inventoryService,
   productsService,
@@ -25,9 +27,18 @@ export default function InventoryPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: () => productsService.all({ sort: "name" }),
+  const q = search.trim().replace(/["\\]/g, "");
+  const filter = q ? `(name ~ "${q}" || sku ~ "${q}")` : undefined;
+  const {
+    items: products,
+    page,
+    setPage,
+    totalPages,
+    totalItems,
+    isFetching,
+  } = usePaginatedList<Product>(productsService, ["products", "inv"], {
+    sort: "name",
+    filter,
   });
   const { data: inventory } = useQuery({
     queryKey: ["inventory"],
@@ -37,14 +48,11 @@ export default function InventoryPage() {
   const rows = useMemo<Row[]>(() => {
     const invByProduct = new Map<string, Inventory>();
     (inventory ?? []).forEach((i) => invByProduct.set(i.product, i));
-    const q = search.trim().toLowerCase();
-    return (products ?? [])
-      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-      .map((p) => {
-        const inv = invByProduct.get(p.id);
-        return { product: p, qty: inv?.qty_on_hand ?? 0, reorder: inv?.reorder_level ?? 0 };
-      });
-  }, [products, inventory, search]);
+    return products.map((p) => {
+      const inv = invByProduct.get(p.id);
+      return { product: p, qty: inv?.qty_on_hand ?? 0, reorder: inv?.reorder_level ?? 0 };
+    });
+  }, [products, inventory]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -87,7 +95,10 @@ export default function InventoryPage() {
         <input
           placeholder="Search products…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -137,6 +148,14 @@ export default function InventoryPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
 
       <Modal
         title={`${mode === "restock" ? "Restock" : "Adjust"} — ${target?.name ?? ""}`}
