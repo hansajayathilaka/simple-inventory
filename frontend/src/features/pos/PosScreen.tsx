@@ -32,6 +32,7 @@ export default function PosScreen() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selected, setSelected] = useState(0);
   const [invoiceDiscount, setInvoiceDiscount] = useState(0);
+  const [tendered, setTendered] = useState("");
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]>("cash");
   const [customer, setCustomer] = useState("");
   const [error, setError] = useState("");
@@ -78,6 +79,8 @@ export default function PosScreen() {
     return { subtotal, discount, tax, grand: Math.max(0, subtotal - discount + tax) };
   }, [cart, invoiceDiscount]);
 
+  const changeDue = tendered === "" ? 0 : Number(tendered) - totals.grand;
+
   const focusSearch = useCallback(() => {
     setQuery("");
     setHighlight(0);
@@ -108,6 +111,15 @@ export default function PosScreen() {
     );
   }, [selected]);
 
+  const updateLine = useCallback((index: number, patch: Partial<CartLine>) => {
+    setCart((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  }, []);
+
+  const removeLine = useCallback((index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+    setSelected((s) => (s >= index && s > 0 ? s - 1 : s));
+  }, []);
+
   const removeSelected = useCallback(() => {
     setCart((prev) => prev.filter((_, i) => i !== selected));
     setSelected((s) => Math.max(0, s - 1));
@@ -124,6 +136,8 @@ export default function PosScreen() {
         customer: customer || undefined,
         payment_method: payment,
         discount_total: invoiceDiscount,
+        amount_tendered:
+          payment === "cash" && tendered !== "" ? Number(tendered) : undefined,
         items: cart.map((l) => ({
           product: l.product.id,
           qty: l.qty,
@@ -141,6 +155,7 @@ export default function PosScreen() {
         unit_price: l.unit_price,
         line_total: Math.max(0, l.qty * l.unit_price - l.discount),
       }));
+      const isCash = payment === "cash" && tendered !== "";
       const html = buildReceiptHTML(settings, {
         number: res.number,
         date: new Date().toLocaleString(),
@@ -152,6 +167,8 @@ export default function PosScreen() {
         tax: totals.tax,
         total: res.grand_total,
         payment,
+        tendered: isCash ? Number(tendered) : undefined,
+        change: isCash ? res.change_given : undefined,
       });
       printHTML(html, {
         silent: !!settings?.printers?.silent,
@@ -161,6 +178,7 @@ export default function PosScreen() {
       setDone(res);
       setCart([]);
       setInvoiceDiscount(0);
+      setTendered("");
       setCustomer("");
       setSelected(0);
     } catch (e) {
@@ -168,7 +186,7 @@ export default function PosScreen() {
     } finally {
       setBusy(false);
     }
-  }, [cart, busy, customer, payment, invoiceDiscount, settings, user, customers, totals, qc]);
+  }, [cart, busy, customer, payment, invoiceDiscount, tendered, settings, user, customers, totals, qc]);
 
   const newSale = useCallback(() => {
     setDone(null);
@@ -271,6 +289,9 @@ export default function PosScreen() {
             Invoice <strong>{done.number}</strong> — total{" "}
             <strong>{cur(done.grand_total)}</strong>
           </p>
+          {done.change_given != null && done.change_given > 0 && (
+            <p className="pos-change-big">Change due: {cur(done.change_given)}</p>
+          )}
           <p className="muted">Receipt sent to printer.</p>
           <div className="inline" style={{ justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={newSale}>
@@ -350,41 +371,102 @@ export default function PosScreen() {
         <section className="pos-right">
           {error && <div className="alert alert-error">{error}</div>}
           <div className="pos-cart">
-            <table>
+            <table className="pos-cart-table">
               <thead>
                 <tr>
                   <th>Item</th>
+                  <th className="num">Cost</th>
                   <th className="num">Qty</th>
                   <th className="num">Price</th>
+                  <th className="num">Disc</th>
                   <th className="num">Total</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {cart.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="empty">
+                    <td colSpan={7} className="empty">
                       Scan or search to add items.
                     </td>
                   </tr>
                 ) : (
-                  cart.map((l, i) => (
-                    <tr
-                      key={l.product.id}
-                      className={i === selected ? "row-selected" : ""}
-                      onMouseDown={() => setSelected(i)}
-                    >
-                      <td>{l.product.name}</td>
-                      <td className="num">{l.qty}</td>
-                      <td className="num">{cur(l.unit_price)}</td>
-                      <td className="num">
-                        {cur(Math.max(0, l.qty * l.unit_price - l.discount))}
-                      </td>
-                    </tr>
-                  ))
+                  cart.map((l, i) => {
+                    const cost = l.product.cost_price ?? 0;
+                    const belowCost = l.unit_price < cost;
+                    return (
+                      <tr
+                        key={l.product.id}
+                        className={i === selected ? "row-selected" : ""}
+                        onMouseDown={() => setSelected(i)}
+                      >
+                        <td>
+                          {l.product.name}
+                          {belowCost && <span className="below-cost" title="Selling below cost"> ⚠</span>}
+                        </td>
+                        <td className="num muted">{cur(cost)}</td>
+                        <td className="num">
+                          <input
+                            className="pos-num"
+                            type="number"
+                            min={1}
+                            value={l.qty}
+                            onFocus={() => setSelected(i)}
+                            onChange={(e) =>
+                              updateLine(i, { qty: Math.max(1, Number(e.target.value) || 1) })
+                            }
+                          />
+                        </td>
+                        <td className="num">
+                          <input
+                            className={belowCost ? "pos-num below-cost-input" : "pos-num"}
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={l.unit_price}
+                            onFocus={() => setSelected(i)}
+                            onChange={(e) =>
+                              updateLine(i, { unit_price: Math.max(0, Number(e.target.value) || 0) })
+                            }
+                          />
+                        </td>
+                        <td className="num">
+                          <input
+                            className="pos-num"
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={l.discount}
+                            onFocus={() => setSelected(i)}
+                            onChange={(e) =>
+                              updateLine(i, { discount: Math.max(0, Number(e.target.value) || 0) })
+                            }
+                          />
+                        </td>
+                        <td className="num">
+                          {cur(Math.max(0, l.qty * l.unit_price - l.discount))}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            tabIndex={-1}
+                            onClick={() => removeLine(i)}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
+          {cart.some((l) => l.unit_price < (l.product.cost_price ?? 0)) && (
+            <div className="alert alert-error" style={{ margin: "8px 0 0" }}>
+              ⚠ One or more items are priced below cost.
+            </div>
+          )}
 
           <div className="pos-totals">
             <div className="row">
@@ -392,7 +474,18 @@ export default function PosScreen() {
               <span>{cur(totals.subtotal)}</span>
             </div>
             <div className="row">
-              <span>Discount</span>
+              <span>
+                Invoice discount
+                <input
+                  className="pos-num"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={invoiceDiscount || ""}
+                  onChange={(e) => setInvoiceDiscount(Math.max(0, Number(e.target.value) || 0))}
+                  style={{ marginLeft: 8, width: 100 }}
+                />
+              </span>
               <span>-{cur(totals.discount)}</span>
             </div>
             <div className="row">
@@ -418,14 +511,48 @@ export default function PosScreen() {
                 </option>
               ))}
             </select>
-            <button
-              className="btn btn-primary pos-charge"
-              disabled={cart.length === 0 || busy}
-              onClick={doCheckout}
+            <select
+              value={payment}
+              onChange={(e) => setPayment(e.target.value as (typeof PAYMENTS)[number])}
+              tabIndex={-1}
             >
-              {busy ? "…" : `Charge ${cur(totals.grand)} (F9)`}
-            </button>
+              {PAYMENTS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
           </div>
+
+          {payment === "cash" && (
+            <div className="pos-cash">
+              <div className="row">
+                <span>Amount tendered</span>
+                <input
+                  className="pos-num"
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="0.00"
+                  value={tendered}
+                  onChange={(e) => setTendered(e.target.value)}
+                  style={{ width: 130 }}
+                />
+              </div>
+              <div className="row change">
+                <span>Change</span>
+                <span className={changeDue < 0 ? "short" : ""}>
+                  {changeDue < 0 ? `Short ${cur(-changeDue)}` : cur(changeDue)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <button
+            className="btn btn-primary pos-charge"
+            disabled={cart.length === 0 || busy}
+            onClick={doCheckout}
+          >
+            {busy ? "…" : `Charge ${cur(totals.grand)} (F9)`}
+          </button>
         </section>
       </div>
 

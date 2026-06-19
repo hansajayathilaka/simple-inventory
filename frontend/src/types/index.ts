@@ -128,6 +128,8 @@ export interface Invoice extends RecordModel {
   payment_method?: "cash" | "card" | "other";
   status: InvoiceStatus;
   note?: string;
+  amount_tendered?: number;
+  change_given?: number;
 }
 
 export interface InvoiceItem extends RecordModel {
@@ -247,6 +249,7 @@ export interface CheckoutPayload {
   items: CheckoutLine[];
   discount_total?: number;
   payment_method?: "cash" | "card" | "other";
+  amount_tendered?: number;
   note?: string;
 }
 
@@ -254,6 +257,7 @@ export interface CheckoutResult {
   id: string;
   number: string;
   grand_total: number;
+  change_given?: number;
 }
 
 export interface ReturnPayload {

@@ -50,8 +50,11 @@ export default function SettingsPage() {
     }
   }, [settings, draft]);
 
-  useEffect(() => {
+  const refreshPrinters = () => {
     if (isDesktop()) listPrinters().then(setPrinters);
+  };
+  useEffect(() => {
+    refreshPrinters();
   }, []);
 
   const save = useMutation({
@@ -174,8 +177,19 @@ export default function SettingsPage() {
 
         {/* Printers */}
         <div className="card">
-          <h2>Printing</h2>
-          {!isDesktop() && (
+          <div className="page-head" style={{ marginBottom: 8 }}>
+            <h2>Printing</h2>
+            {isDesktop() && (
+              <button type="button" className="btn btn-sm" onClick={refreshPrinters}>
+                Refresh printers
+              </button>
+            )}
+          </div>
+          {isDesktop() ? (
+            <p className="muted">
+              {printers.length} system printer{printers.length === 1 ? "" : "s"} detected.
+            </p>
+          ) : (
             <p className="muted">
               Silent printing & printer selection are available in the desktop app.
               In the browser, the system print dialog is used.

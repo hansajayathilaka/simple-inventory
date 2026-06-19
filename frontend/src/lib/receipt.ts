@@ -18,6 +18,8 @@ export interface ReceiptData {
   tax: number;
   total: number;
   payment?: string;
+  tendered?: number;
+  change?: number;
 }
 
 function esc(s: string): string {
@@ -87,6 +89,14 @@ export function buildReceiptHTML(
   </table>
   <hr />
   ${data.payment ? `<div>Payment: ${esc(data.payment)}</div>` : ""}
+  ${
+    data.tendered != null
+      ? `<table>
+          <tr><td>Tendered</td><td class="n">${m(data.tendered, cur)}</td></tr>
+          <tr><td>Change</td><td class="n">${m(data.change ?? 0, cur)}</td></tr>
+        </table>`
+      : ""
+  }
   <div class="ctr">${esc(r?.footer ?? "Thank you!")}</div>
 </body></html>`;
 }

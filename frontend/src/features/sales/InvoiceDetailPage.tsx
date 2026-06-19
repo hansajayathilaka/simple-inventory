@@ -42,6 +42,8 @@ export default function InvoiceDetailPage() {
       tax: invoice.tax_total,
       total: invoice.grand_total,
       payment: invoice.payment_method,
+      tendered: invoice.amount_tendered,
+      change: invoice.change_given,
     });
     printHTML(html, {
       silent: !!settings?.printers?.silent,
@@ -104,6 +106,12 @@ export default function InvoiceDetailPage() {
             <tr><td>Discount</td><td className="num">-{money(invoice.discount_total)}</td></tr>
             <tr><td>Tax</td><td className="num">{money(invoice.tax_total)}</td></tr>
             <tr><td><strong>Total</strong></td><td className="num"><strong>{money(invoice.grand_total)}</strong></td></tr>
+            {invoice.amount_tendered != null && (
+              <>
+                <tr><td>Tendered</td><td className="num">{money(invoice.amount_tendered)}</td></tr>
+                <tr><td>Change</td><td className="num">{money(invoice.change_given)}</td></tr>
+              </>
+            )}
           </tbody>
         </table>
         <hr />

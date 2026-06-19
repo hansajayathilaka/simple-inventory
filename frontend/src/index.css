@@ -151,6 +151,16 @@ tbody tr:hover { background: #fafbfe; }
 .pos-totals .row.grand { font-size: 24px; font-weight: 700; border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 8px; }
 .pos-pay { display: flex; gap: 8px; margin-top: 10px; }
 .pos-pay select { flex: 1; }
+.pos-num { width: 64px; padding: 4px 6px; text-align: right; }
+.pos-cart-table input.pos-num { display: inline-block; }
+.below-cost { color: var(--danger); font-weight: 700; }
+.below-cost-input { border-color: var(--danger); color: var(--danger); }
+.pos-cash { margin-top: 8px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.pos-cash .row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+.pos-cash .row.change { font-size: 18px; font-weight: 700; }
+.pos-cash .short { color: var(--danger); }
+.pos-charge { width: 100%; margin-top: 10px; }
+.pos-change-big { font-size: 22px; font-weight: 700; color: var(--ok); }
 .pos-charge { font-size: 18px; padding: 14px 20px; white-space: nowrap; }
 .pos-footer { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 16px; background: #0c1830; color: #9fb0cc; font-size: 12px; }
 .pos-footer b { color: #fff; }
