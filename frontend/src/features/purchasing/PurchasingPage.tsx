@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
+import Pagination from "../../components/Pagination";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import {
   productsService,
   purchaseOrderItemsService,
@@ -28,9 +30,16 @@ export default function PurchasingPage() {
   const [lines, setLines] = useState<Line[]>([{ product: "", qty: "", unit_cost: "" }]);
   const [error, setError] = useState("");
 
-  const { data: orders } = useQuery({
-    queryKey: ["purchase_orders"],
-    queryFn: () => purchaseOrdersService.all({ sort: "-created", expand: "supplier" }),
+  const {
+    items: orders,
+    page,
+    setPage,
+    totalPages,
+    totalItems,
+    isFetching,
+  } = usePaginatedList<PurchaseOrder>(purchaseOrdersService, ["purchase_orders"], {
+    sort: "-created",
+    expand: "supplier",
   });
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers"],
@@ -114,7 +123,7 @@ export default function PurchasingPage() {
             </tr>
           </thead>
           <tbody>
-            {(orders ?? []).map((po) => (
+            {orders.map((po) => (
               <tr key={po.id}>
                 <td>{date(po.created)}</td>
                 <td>{(po.expand?.supplier as { name?: string })?.name ?? "—"}</td>
@@ -151,6 +160,14 @@ export default function PurchasingPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
 
       <Modal title="New purchase order" open={open} onClose={() => setOpen(false)} width={680}>
         <form

@@ -128,6 +128,8 @@ export interface Invoice extends RecordModel {
   payment_method?: "cash" | "card" | "other";
   status: InvoiceStatus;
   note?: string;
+  amount_tendered?: number;
+  change_given?: number;
 }
 
 export interface InvoiceItem extends RecordModel {
@@ -175,6 +177,64 @@ export interface ReturnItem extends RecordModel {
   line_total: number;
 }
 
+// --- App settings (customization panel) ---
+
+export interface FeatureFlags {
+  customers: boolean;
+  returns: boolean;
+  purchasing: boolean;
+  suppliers: boolean;
+  reports: boolean;
+  loyalty: boolean;
+  tags: boolean;
+  discounts: boolean;
+}
+
+export interface ThemeSettings {
+  primary: string;
+  sidebar: string;
+  accent: string;
+}
+
+export interface ReceiptSettings {
+  header: string;
+  footer: string;
+  showLogo: boolean;
+  paperWidthMm: number;
+  fontSizePt: number;
+}
+
+// Symbology is a free string so new barcode types can be added without a schema
+// change (see lib/barcode.ts for the swappable renderer).
+export interface LabelSettings {
+  widthMm: number;
+  heightMm: number;
+  columns: number;
+  symbology: string;
+  showName: boolean;
+  showPrice: boolean;
+  showBarcode: boolean;
+}
+
+export interface PrinterSettings {
+  receiptPrinter: string;
+  labelPrinter: string;
+  silent: boolean;
+}
+
+export interface AppSettings extends RecordModel {
+  company_name: string;
+  company_address?: string;
+  company_phone?: string;
+  logo?: string;
+  currency_symbol?: string;
+  theme: ThemeSettings;
+  features: FeatureFlags;
+  receipt: ReceiptSettings;
+  label: LabelSettings;
+  printers: PrinterSettings;
+}
+
 // --- POS request/response payloads (custom routes) ---
 
 export interface CheckoutLine {
@@ -189,6 +249,7 @@ export interface CheckoutPayload {
   items: CheckoutLine[];
   discount_total?: number;
   payment_method?: "cash" | "card" | "other";
+  amount_tendered?: number;
   note?: string;
 }
 
@@ -196,6 +257,7 @@ export interface CheckoutResult {
   id: string;
   number: string;
   grand_total: number;
+  change_given?: number;
 }
 
 export interface ReturnPayload {

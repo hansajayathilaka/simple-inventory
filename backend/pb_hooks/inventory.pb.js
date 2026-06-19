@@ -69,6 +69,42 @@ routerAdd(
   $apis.requireRecordAuth()
 );
 
+// POST /api/inventory/reorder-level
+// body: { product, reorder_level }   // sets the low-stock threshold (no movement)
+routerAdd(
+  "POST",
+  "/api/inventory/reorder-level",
+  (c) => {
+    const { requireOwner } = require(`${__hooks}/utils.js`);
+    const { data } = requireOwner(c);
+    const level = Number(data.reorder_level);
+    if (!data.product || !Number.isFinite(level) || level < 0)
+      throw new BadRequestError("product and a non-negative reorder_level are required.");
+
+    let out = null;
+    $app.dao().runInTransaction((tx) => {
+      let inv = null;
+      try {
+        inv = tx.findFirstRecordByFilter("inventory", "product = {:p}", {
+          p: data.product,
+        });
+      } catch (_) {
+        inv = null;
+      }
+      if (!inv) {
+        inv = new Record(tx.findCollectionByNameOrId("inventory"));
+        inv.set("product", data.product);
+        inv.set("qty_on_hand", 0);
+      }
+      inv.set("reorder_level", level);
+      tx.saveRecord(inv);
+      out = { product: data.product, reorder_level: inv.getFloat("reorder_level") };
+    });
+    return c.json(200, out);
+  },
+  $apis.requireRecordAuth()
+);
+
 // POST /api/purchasing/receive/:id  -> receive a draft purchase order
 // Creates purchase movements for every line and marks the PO as received.
 routerAdd(

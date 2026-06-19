@@ -4,7 +4,7 @@
 //   2. Wait for it to become healthy.
 //   3. Load the built React UI (or the Vite dev server in development).
 //   4. Tear the sidecar down cleanly on quit.
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const path = require("node:path");
@@ -111,6 +111,49 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+// --- Printing IPC (used by the renderer's window.desktop bridge) ---
+
+ipcMain.handle("desktop:get-printers", async () => {
+  if (!mainWindow) return [];
+  try {
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map((p) => ({ name: p.name, displayName: p.displayName }));
+  } catch (err) {
+    console.error("getPrinters failed", err);
+    return [];
+  }
+});
+
+// Render an HTML string in an offscreen window and print it, optionally silently
+// to a named device.
+ipcMain.handle("desktop:print-html", async (_event, html, options = {}) => {
+  const printWin = new BrowserWindow({
+    show: false,
+    webPreferences: { offscreen: false },
+  });
+  try {
+    await printWin.loadURL(
+      "data:text/html;charset=utf-8," + encodeURIComponent(html)
+    );
+    await new Promise((resolve, reject) => {
+      printWin.webContents.print(
+        {
+          silent: options.silent !== false,
+          printBackground: true,
+          deviceName: options.deviceName || undefined,
+        },
+        (success, failureReason) =>
+          success ? resolve() : reject(new Error(failureReason || "print failed"))
+      );
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  } finally {
+    printWin.close();
+  }
+});
 
 app.whenReady().then(async () => {
   try {

@@ -10,6 +10,15 @@ A shop management / point-of-sale system for small retail shops.
 - **Owner**: manage inventory, restock, suppliers, users, products & attributes,
   view reports
 - **Cashier**: sell goods, create invoices, give discounts, process returns
+- **Isolated keyboard-driven POS** (`/pos`): scan/search, full keyboard control
+  (Enter add · ↑/↓ move · +/− qty · F9 charge · Esc exit), auto-printed receipt
+- **Customization panel** (Settings): company name & logo, theme colors,
+  feature on/off toggles, receipt/bill layout, printer selection
+- **Tag stickers**: printable product price/barcode labels (CODE128 by default,
+  swappable symbology), configurable label size
+- **Desktop printing**: silent printing to a chosen printer in the Electron build
+  (system print dialog in the browser)
+- **Paginated lists** throughout
 
 ## Tech stack
 

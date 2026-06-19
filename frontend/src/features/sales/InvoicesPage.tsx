@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import Pagination from "../../components/Pagination";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import { invoicesService } from "../../services";
 import { money, dateTime } from "../../lib/format";
-import type { InvoiceStatus } from "../../types";
+import type { Invoice, InvoiceStatus } from "../../types";
 
 const statusBadge: Record<InvoiceStatus, string> = {
   draft: "badge",
@@ -15,17 +16,18 @@ const statusBadge: Record<InvoiceStatus, string> = {
 
 export default function InvoicesPage() {
   const [search, setSearch] = useState("");
-  const { data, isLoading } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: () => invoicesService.all({ sort: "-created", expand: "customer,cashier" }),
-  });
+  const q = search.trim().replace(/["\\]/g, "");
+  // exclude drafts; add number search
+  const filter = q
+    ? `status != "draft" && number ~ "${q}"`
+    : `status != "draft"`;
 
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = (data ?? []).filter((i) => i.status !== "draft");
-    if (!q) return list;
-    return list.filter((i) => i.number.toLowerCase().includes(q));
-  }, [data, search]);
+  const { items, isLoading, page, setPage, totalPages, totalItems, isFetching } =
+    usePaginatedList<Invoice>(invoicesService, ["invoices", "list"], {
+      sort: "-created",
+      expand: "customer,cashier",
+      filter,
+    });
 
   return (
     <div>
@@ -40,14 +42,17 @@ export default function InvoicesPage() {
         <input
           placeholder="Search by invoice number…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
       <div className="card" style={{ padding: 0 }}>
         {isLoading ? (
           <div className="empty">Loading…</div>
-        ) : rows.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="empty">No invoices yet.</div>
         ) : (
           <table>
@@ -63,7 +68,7 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((i) => (
+              {items.map((i) => (
                 <tr key={i.id}>
                   <td><code>{i.number}</code></td>
                   <td>{dateTime(i.created)}</td>
@@ -82,6 +87,14 @@ export default function InvoicesPage() {
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        onChange={setPage}
+        isFetching={isFetching}
+      />
     </div>
   );
 }

@@ -92,9 +92,23 @@ routerAdd(
       invoice.set("grand_total", grandTotal);
       invoice.set("number", nextNumber(tx, "invoices", "INV-"));
       invoice.set("status", "paid");
+
+      // cash handling: record tendered amount + change when provided
+      let changeGiven = 0;
+      if (data.amount_tendered != null && data.amount_tendered !== "") {
+        const tendered = money(data.amount_tendered);
+        changeGiven = money(Math.max(0, tendered - grandTotal));
+        invoice.set("amount_tendered", tendered);
+        invoice.set("change_given", changeGiven);
+      }
       tx.saveRecord(invoice);
 
-      out = { id: invoice.id, number: invoice.get("number"), grand_total: grandTotal };
+      out = {
+        id: invoice.id,
+        number: invoice.get("number"),
+        grand_total: grandTotal,
+        change_given: changeGiven,
+      };
     });
 
     return c.json(200, out);
