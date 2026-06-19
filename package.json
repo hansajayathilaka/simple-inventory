@@ -25,5 +25,12 @@
   "dependencies": {
     "7zip-bin": "^5.2.0",
     "app-builder-bin": "4.2.0"
+  },
+  "devDependencies": {
+    "electron": "42.4.1",
+    "electron-builder": "^24.13.3"
+  },
+  "overrides": {
+    "app-builder-bin": "4.2.0"
   }
 }

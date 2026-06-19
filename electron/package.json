@@ -16,6 +16,7 @@
   },
   "build": {
     "appId": "com.simpleinventory.app",
+    "npmRebuild": false,
     "productName": "Simple Inventory",
     "directories": {
       "output": "out"
@@ -53,8 +54,5 @@
     "publish": {
       "provider": "github"
     }
-  },
-  "dependencies": {
-    "app-builder-bin": "^4.2.0"
   }
 }
