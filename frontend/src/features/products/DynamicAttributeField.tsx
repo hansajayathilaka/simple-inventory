@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { lookupServices } from "../../services";
+import { lookupService } from "../../services";
 import type { AttributeDefinition } from "../../types";
 
 // Renders a single product-attribute input driven by its definition.
@@ -18,8 +18,8 @@ export default function DynamicAttributeField({
 
   const { data: options } = useQuery({
     queryKey: ["lookup", target],
-    queryFn: () => lookupServices[target].all({ sort: "name" }),
-    enabled: isRelation && !!lookupServices[target],
+    queryFn: () => lookupService(target).all({ sort: "name" }),
+    enabled: isRelation && !!target,
   });
 
   const label = (

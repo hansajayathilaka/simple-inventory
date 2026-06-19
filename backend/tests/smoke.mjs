@@ -148,6 +148,66 @@ async function main() {
   const invoice2 = await api("GET", `/api/collections/invoices/records/${checkout.data.id}`, null, ot);
   assert(invoice2.data.status === "partially_returned", "invoice status becomes partially_returned");
 
+  // custom lookups: owner creates a real reference collection at runtime,
+  // CRUDs it, and uses it as a relation-attribute target.
+  const cashierList = await api("POST", "/api/lookups", { label: "Color" }, ct);
+  assert(!cashierList.ok, "cashier is blocked from creating a custom list");
+
+  const newList = await api("POST", "/api/lookups", { label: "Color" }, ot);
+  assert(
+    newList.ok && newList.data.name === "lk_color",
+    "owner creates a custom list (Color -> lk_color)"
+  );
+
+  const listed = await api("GET", "/api/lookups", null, ct);
+  assert(
+    listed.ok && listed.data.some((l) => l.name === "lk_color"),
+    "custom list appears in GET /api/lookups"
+  );
+
+  const colorItem = await api(
+    "POST",
+    "/api/collections/lk_color/records",
+    { name: "Red" },
+    ot
+  );
+  assert(colorItem.ok, "owner CRUDs items in the custom collection");
+
+  const colorAttr = await api(
+    "POST",
+    "/api/collections/attribute_definitions/records",
+    { key: "color", label: "Color", type: "relation", target_collection: "lk_color", applies_to: "product" },
+    ot
+  );
+  assert(colorAttr.ok, "relation attribute can target the custom collection");
+
+  const coloredProduct = await api(
+    "POST",
+    "/api/collections/products/records",
+    { sku: "SMOKE-COLOR", name: "Colored Widget", sell_price: 10, attributes: { make: brand.data.id, color: colorItem.data.id } },
+    ot
+  );
+  assert(coloredProduct.ok, "product referencing a custom-list item validates");
+
+  const dupList = await api("POST", "/api/lookups", { label: "Color" }, ot);
+  assert(!dupList.ok, "duplicate custom list is rejected");
+
+  const delInUse = await api("DELETE", "/api/lookups/lk_color", null, ot);
+  assert(!delInUse.ok, "custom list in use by an attribute cannot be deleted");
+
+  // an unused custom list can be created and deleted cleanly
+  const tempList = await api("POST", "/api/lookups", { label: "Material" }, ot);
+  assert(tempList.ok, "owner creates a second custom list (Material)");
+  const cashierDel = await api("DELETE", "/api/lookups/lk_material", null, ct);
+  assert(!cashierDel.ok, "cashier is blocked from deleting a custom list");
+  const delUnused = await api("DELETE", "/api/lookups/lk_material", null, ot);
+  assert(delUnused.ok, "owner deletes an unused custom list");
+  const goneList = await api("GET", "/api/lookups", null, ot);
+  assert(
+    !goneList.data.some((l) => l.name === "lk_material"),
+    "deleted list no longer appears in GET /api/lookups"
+  );
+
   // app_settings: seeded singleton, owner-editable
   const settings = await api("GET", "/api/collections/app_settings/records", null, ot);
   assert(settings.ok && settings.data.items.length === 1, "app_settings has a seeded singleton row");

@@ -39,6 +39,26 @@ Owner-managed (`OWNER` writes, `AUTH` reads). These are the targets for
 - **`suppliers`** — `name`*, `contact_person`, `phone`, `email`, `address`,
   `notes`, `is_active`
 
+### Owner-created custom lists (`lk_*`)
+
+The owner can create brand-new reference lists at runtime — no developer needed
+— from **Catalog → Lookups → + New list**. Each list is a *real* PocketBase
+collection named `lk_<slug>` with `name`* + `description` and the same
+`OWNER`-writes / `AUTH`-reads rules as the built-ins, so it is fully CRUD-able
+and usable as a `relation` attribute target.
+
+- **`lookup_collections`** — registry of custom lists: `name`* (the real
+  collection name, e.g. `lk_color`), `label` (e.g. `Color`). Written only by the
+  privileged routes below; `AUTH` reads.
+- Routes (`pb_hooks/lookups.pb.js`): `GET /api/lookups` (list), `POST
+  /api/lookups` `{label}` (owner — create collection + register), `DELETE
+  /api/lookups/:name` (owner — drop; blocked while an attribute targets it).
+- Mutating the schema inside a request makes PocketBase reload and replay the
+  first such handler per boot, so the routes are idempotent. PocketBase
+  automigrate also writes a `*_lk_*.js` migration into each install's
+  environment to persist the new collection; those files are git-ignored
+  (per-install runtime artifacts, not repo schema).
+
 ## Dynamic attributes
 
 ### `attribute_definitions`
@@ -50,7 +70,7 @@ Owner-defined attributes that appear on products. (`OWNER` writes, `AUTH` reads.
 | label             | text   | UI label (e.g. `Make`)                                  |
 | type              | select | `text`/`number`/`boolean`/`date`/`select`/`relation`    |
 | options           | json   | allowed values when `type=select`                       |
-| target_collection | text   | target lookup collection when `type=relation`           |
+| target_collection | text   | target lookup collection when `type=relation` (built-in or `lk_*`) |
 | is_required       | bool   | enforced server-side on product save                    |
 | is_multiple       | bool   | allow multiple values                                   |
 | applies_to        | select | `product` (future-proof for other entities)             |
