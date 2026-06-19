@@ -18,9 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - name: Install root dependencies
+      - name: Install dependencies
         run: npm install
 
       - name: Download PocketBase (Windows)

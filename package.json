@@ -23,6 +23,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "7zip-bin": "^5.2.0"
+    "7zip-bin": "^5.2.0",
+    "app-builder-bin": "4.2.0"
   }
 }
