@@ -13,7 +13,7 @@ const procs = [
 ];
 
 const children = procs.map(({ name, cmd, args }) => {
-  const child = spawn(cmd, args, { cwd: root, stdio: "inherit" });
+  const child = spawn(cmd, args, { cwd: root, stdio: "inherit", shell: process.platform === "win32" });
   child.on("exit", (code) => {
     console.log(`[${name}] exited with code ${code}`);
     shutdown();

@@ -14,10 +14,14 @@
     "frontend": "npm --workspace frontend run dev",
     "frontend:build": "npm --workspace frontend run build",
     "dev": "node scripts/dev.mjs",
+    "dev:electron": "node scripts/dev-electron.mjs",
     "dist": "npm run frontend:build && npm --workspace electron run dist"
   },
   "engines": {
     "node": ">=20"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "7zip-bin": "^5.2.0"
+  }
 }
