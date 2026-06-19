@@ -492,17 +492,16 @@ export default function PosScreen() {
               <span>{cur(totals.subtotal)}</span>
             </div>
             <div className="row">
+              <span>Discount</span>
               <input
                 className="pos-num"
                 type="number"
                 min={0}
                 step="any"
-                placeholder="Discount"
                 value={invoiceDiscount || ""}
                 onChange={(e) => setInvoiceDiscount(Math.max(0, Number(e.target.value) || 0))}
-                style={{ width: 120, textAlign: "left" }}
+                style={{ width: 120 }}
               />
-              <span>-{cur(totals.discount)}</span>
             </div>
             <div className="row">
               <span>Tax</span>
