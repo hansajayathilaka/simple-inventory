@@ -29,6 +29,7 @@ export default function PurchasingPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [supplier, setSupplier] = useState("");
   const [reference, setReference] = useState("");
@@ -62,36 +63,60 @@ export default function PurchasingPage() {
     enabled: !!viewId,
   });
 
-  const create = useMutation({
+  const save = useMutation({
     mutationFn: async () => {
       const valid = lines.filter((l) => l.product && Number(l.qty) > 0);
       if (!supplier) throw new Error("Choose a supplier.");
       if (valid.length === 0) throw new Error("Add at least one line.");
+      const writeItems = async (poId: string) => {
+        for (const l of valid) {
+          const qty = Number(l.qty);
+          const cost = Number(l.unit_cost) || 0;
+          await purchaseOrderItemsService.create({
+            purchase_order: poId,
+            product: l.product,
+            qty,
+            unit_cost: cost,
+            line_total: Math.round(qty * cost * 100) / 100,
+          });
+        }
+      };
+      if (editingId) {
+        await purchaseOrdersService.update(editingId, { supplier, reference });
+        // replace the line items wholesale (simplest correct sync for a draft)
+        const existing = await purchaseOrderItemsService.all({
+          filter: `purchase_order = "${editingId}"`,
+        });
+        for (const it of existing) await purchaseOrderItemsService.remove(it.id);
+        await writeItems(editingId);
+        return { id: editingId };
+      }
       const po = await purchaseOrdersService.create({
         supplier,
         reference,
         status: "draft",
         created_by: user?.id,
       } as Partial<PurchaseOrder>);
-      for (const l of valid) {
-        const qty = Number(l.qty);
-        const cost = Number(l.unit_cost) || 0;
-        await purchaseOrderItemsService.create({
-          purchase_order: po.id,
-          product: l.product,
-          qty,
-          unit_cost: cost,
-          line_total: Math.round(qty * cost * 100) / 100,
-        });
-      }
+      await writeItems(po.id);
       return po;
     },
     onSuccess: (po) => {
       qc.invalidateQueries({ queryKey: ["purchase_orders"] });
+      qc.invalidateQueries({ queryKey: ["purchase_order", po.id] });
+      qc.invalidateQueries({ queryKey: ["purchase_order_items", po.id] });
       setOpen(false);
       setViewId(po.id);
     },
     onError: (e) => setError(errorMessage(e)),
+  });
+
+  const del = useMutation({
+    mutationFn: (id: string) => purchaseOrdersService.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchase_orders"] });
+      setViewId(null);
+    },
+    onError: (e) => alert(errorMessage(e)),
   });
 
   const receive = useMutation({
@@ -107,11 +132,39 @@ export default function PurchasingPage() {
   });
 
   const startCreate = () => {
+    setEditingId(null);
     setSupplier("");
     setReference("");
     setLines([{ product: "", qty: "", unit_cost: "" }]);
     setError("");
     setOpen(true);
+  };
+
+  const startEdit = async (po: PurchaseOrder) => {
+    setViewId(null);
+    setEditingId(po.id);
+    setSupplier(po.supplier);
+    setReference(po.reference ?? "");
+    setError("");
+    const items = await purchaseOrderItemsService.all({
+      filter: `purchase_order = "${po.id}"`,
+      sort: "created",
+    });
+    setLines(
+      items.length
+        ? items.map((it) => ({
+            product: it.product,
+            qty: String(it.qty),
+            unit_cost: String(it.unit_cost ?? ""),
+          }))
+        : [{ product: "", qty: "", unit_cost: "" }]
+    );
+    setOpen(true);
+  };
+
+  const confirmDelete = (po: PurchaseOrder) => {
+    if (confirm(`Delete purchase order${po.reference ? ` ${po.reference}` : ""}? This cannot be undone.`))
+      del.mutate(po.id);
   };
 
   return (
@@ -164,15 +217,27 @@ export default function PurchasingPage() {
                       View
                     </button>
                     {po.status === "draft" && (
-                      <button
-                        className="btn btn-sm btn-primary"
-                        disabled={receive.isPending}
-                        onClick={() => {
-                          if (confirm("Receive this PO into stock?")) receive.mutate(po.id);
-                        }}
-                      >
-                        Receive
-                      </button>
+                      <>
+                        <button className="btn btn-sm" onClick={() => startEdit(po)}>
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          disabled={del.isPending}
+                          onClick={() => confirmDelete(po)}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          disabled={receive.isPending}
+                          onClick={() => {
+                            if (confirm("Receive this PO into stock?")) receive.mutate(po.id);
+                          }}
+                        >
+                          Receive
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>
@@ -190,12 +255,17 @@ export default function PurchasingPage() {
         isFetching={isFetching}
       />
 
-      <Modal title="New purchase order" open={open} onClose={() => setOpen(false)} width={680}>
+      <Modal
+        title={editingId ? "Edit purchase order" : "New purchase order"}
+        open={open}
+        onClose={() => setOpen(false)}
+        width={680}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setError("");
-            create.mutate();
+            save.mutate();
           }}
         >
           {error && <div className="alert alert-error">{error}</div>}
@@ -294,8 +364,12 @@ export default function PurchasingPage() {
             <button type="button" className="btn" onClick={() => setOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-primary" disabled={create.isPending}>
-              {create.isPending ? "Saving…" : "Create draft"}
+            <button className="btn btn-primary" disabled={save.isPending}>
+              {save.isPending
+                ? "Saving…"
+                : editingId
+                ? "Save changes"
+                : "Create draft"}
             </button>
           </div>
         </form>
@@ -395,15 +469,27 @@ export default function PurchasingPage() {
                 Close
               </button>
               {viewPo.status === "draft" && (
-                <button
-                  className="btn btn-primary"
-                  disabled={receive.isPending}
-                  onClick={() => {
-                    if (confirm("Receive this PO into stock?")) receive.mutate(viewPo.id);
-                  }}
-                >
-                  {receive.isPending ? "Receiving…" : "Receive into stock"}
-                </button>
+                <>
+                  <button className="btn" onClick={() => startEdit(viewPo)}>
+                    Edit
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    disabled={del.isPending}
+                    onClick={() => confirmDelete(viewPo)}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    disabled={receive.isPending}
+                    onClick={() => {
+                      if (confirm("Receive this PO into stock?")) receive.mutate(viewPo.id);
+                    }}
+                  >
+                    {receive.isPending ? "Receiving…" : "Receive into stock"}
+                  </button>
+                </>
               )}
             </div>
           </>
