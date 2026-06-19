@@ -154,6 +154,39 @@ export interface InvoiceItem extends RecordModel {
   discount?: number;
   tax_rate?: number;
   line_total: number;
+  // total cost of the stock lots this line consumed (for margin reporting)
+  cost_total?: number;
+}
+
+export type BatchSourceType =
+  | "opening"
+  | "purchase"
+  | "restock"
+  | "return"
+  | "adjustment";
+
+// A stock lot: a quantity of a product received together, with its own cost and
+// selling price. qty_remaining is drawn down FIFO as items are sold.
+export interface StockBatch extends RecordModel {
+  product: string;
+  qty_received: number;
+  qty_remaining: number;
+  unit_cost?: number;
+  sell_price?: number;
+  source_type: BatchSourceType;
+  source_reference?: string;
+  received_at?: string;
+  note?: string;
+  created_by?: string;
+}
+
+// Records which lot (and how much of it) an invoice line consumed.
+export interface InvoiceItemBatch extends RecordModel {
+  invoice_item: string;
+  batch?: string;
+  product: string;
+  qty: number;
+  unit_cost?: number;
 }
 
 export interface PurchaseOrder extends RecordModel {

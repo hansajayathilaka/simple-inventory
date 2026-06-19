@@ -40,6 +40,128 @@ function applyMovement(dao, m) {
   return mv;
 }
 
+// --- Per-batch (lot) pricing & cost (FIFO) ---------------------------------
+//
+// Every inbound movement (opening stock, PO receipt, restock, returned goods)
+// opens a stock_batch with its own unit_cost + sell_price and a qty_remaining.
+// Sales draw down the oldest open lots first, so the cost of a sale is the cost
+// of the exact lots consumed. These helpers run inside the same transaction as
+// applyMovement so inventory.qty_on_hand and the batches stay in lock-step.
+
+// Open a new stock lot. `qty` must be positive.
+function openBatch(dao, b) {
+  const rec = new Record(dao.findCollectionByNameOrId("stock_batches"));
+  rec.set("product", b.product);
+  rec.set("qty_received", b.qty);
+  rec.set("qty_remaining", b.qty);
+  if (b.unit_cost != null) rec.set("unit_cost", money(b.unit_cost));
+  if (b.sell_price != null) rec.set("sell_price", money(b.sell_price));
+  rec.set("source_type", b.source_type);
+  if (b.source_reference) rec.set("source_reference", b.source_reference);
+  rec.set("received_at", b.received_at || new Date().toISOString());
+  if (b.note) rec.set("note", b.note);
+  if (b.created_by) rec.set("created_by", b.created_by);
+  dao.saveRecord(rec);
+  return rec;
+}
+
+// Selling price of the lot a sale would currently draw from (oldest open lot),
+// or null when no open lot exists. POS uses this so the price reflects the stock
+// being sold rather than only the catalogue price.
+function oldestOpenBatchPrice(dao, productId) {
+  const open = dao.findRecordsByFilter(
+    "stock_batches",
+    "product = {:p} && qty_remaining > 0",
+    "received_at,created",
+    1,
+    0,
+    { p: productId }
+  );
+  if (!open || open.length === 0) return null;
+  const sp = open[0].getFloat("sell_price");
+  return sp > 0 ? sp : null;
+}
+
+// Draw `qty` units from the product's open lots, oldest first (FIFO). Records an
+// invoice_item_batches link per lot consumed and returns the total cost drawn.
+// If the open lots cannot cover `qty` (oversell / legacy untracked stock), the
+// shortfall is recorded with a null lot at the product's cost_price so the line
+// cost stays meaningful.
+function consumeFIFO(dao, { product, qty, invoice_item, created_by }) {
+  let remaining = qty;
+  let costTotal = 0;
+  const open = dao.findRecordsByFilter(
+    "stock_batches",
+    "product = {:p} && qty_remaining > 0",
+    "received_at,created",
+    0,
+    0,
+    { p: product }
+  );
+  for (const batch of open) {
+    if (remaining <= 0) break;
+    const avail = batch.getFloat("qty_remaining");
+    const take = Math.min(avail, remaining);
+    const unitCost = batch.getFloat("unit_cost") || 0;
+
+    batch.set("qty_remaining", money(avail - take));
+    dao.saveRecord(batch);
+
+    const link = new Record(dao.findCollectionByNameOrId("invoice_item_batches"));
+    link.set("invoice_item", invoice_item);
+    link.set("batch", batch.id);
+    link.set("product", product);
+    link.set("qty", take);
+    link.set("unit_cost", unitCost);
+    dao.saveRecord(link);
+
+    costTotal += take * unitCost;
+    remaining = money(remaining - take);
+  }
+
+  if (remaining > 0) {
+    // shortfall: no lot to draw from. Fall back to the product cost.
+    let fallbackCost = 0;
+    try {
+      fallbackCost = dao.findRecordById("products", product).getFloat("cost_price") || 0;
+    } catch (_) {
+      fallbackCost = 0;
+    }
+    const link = new Record(dao.findCollectionByNameOrId("invoice_item_batches"));
+    link.set("invoice_item", invoice_item);
+    link.set("product", product);
+    link.set("qty", remaining);
+    link.set("unit_cost", fallbackCost);
+    dao.saveRecord(link);
+    costTotal += remaining * fallbackCost;
+  }
+
+  return money(costTotal);
+}
+
+// Weighted-average unit cost of the lots an invoice line was sold from, used to
+// price returned goods back into stock. Returns null for legacy lines that have
+// no lot links (caller should fall back to the product cost).
+function returnUnitCost(dao, invoiceItemId) {
+  const links = dao.findRecordsByFilter(
+    "invoice_item_batches",
+    "invoice_item = {:id}",
+    "",
+    0,
+    0,
+    { id: invoiceItemId }
+  );
+  if (!links || links.length === 0) return null;
+  let qty = 0;
+  let cost = 0;
+  for (const l of links) {
+    const q = l.getFloat("qty");
+    qty += q;
+    cost += q * (l.getFloat("unit_cost") || 0);
+  }
+  return qty > 0 ? money(cost / qty) : null;
+}
+
 // Generate the next sequential document number, e.g.
 // nextNumber(dao, "invoices", "INV-") -> "INV-000001".
 function nextNumber(dao, collection, prefix) {
@@ -183,6 +305,10 @@ function validateProductAttributes(record) {
 
 module.exports = {
   applyMovement,
+  openBatch,
+  oldestOpenBatchPrice,
+  consumeFIFO,
+  returnUnitCost,
   nextNumber,
   money,
   requireOwner,

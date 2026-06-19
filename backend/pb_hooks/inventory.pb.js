@@ -6,12 +6,14 @@
 // required *inside* each handler (JSVM handlers run in isolated scope).
 
 // POST /api/inventory/restock
-// body: { product, qty, unit_cost?, supplier?, note? }
+// body: { product, qty, unit_cost?, sell_price?, note? }
+// Opens a new stock lot (batch) for the added quantity, carrying its own cost
+// and selling price so this stock can be priced independently of the catalogue.
 routerAdd(
   "POST",
   "/api/inventory/restock",
   (c) => {
-    const { applyMovement, requireOwner } = require(`${__hooks}/utils.js`);
+    const { applyMovement, openBatch, requireOwner } = require(`${__hooks}/utils.js`);
     const { auth, data } = requireOwner(c);
     const qty = Number(data.qty);
     if (!data.product || !(qty > 0))
@@ -19,11 +21,31 @@ routerAdd(
 
     let out = null;
     $app.dao().runInTransaction((tx) => {
+      const unitCost = data.unit_cost != null ? Number(data.unit_cost) : null;
       const mv = applyMovement(tx, {
         product: data.product,
         type: "restock",
         qty: qty,
-        unit_cost: data.unit_cost != null ? Number(data.unit_cost) : null,
+        unit_cost: unitCost,
+        note: data.note || "",
+        created_by: auth.id,
+      });
+      // lot selling price: explicit override, else the product's catalogue price
+      let sellPrice = data.sell_price != null ? Number(data.sell_price) : null;
+      if (sellPrice == null) {
+        try {
+          sellPrice = tx.findRecordById("products", data.product).getFloat("sell_price");
+        } catch (_) {
+          sellPrice = null;
+        }
+      }
+      openBatch(tx, {
+        product: data.product,
+        qty: qty,
+        unit_cost: unitCost,
+        sell_price: sellPrice,
+        source_type: "restock",
+        source_reference: mv.id,
         note: data.note || "",
         created_by: auth.id,
       });
@@ -111,7 +133,7 @@ routerAdd(
   "POST",
   "/api/purchasing/receive/:id",
   (c) => {
-    const { applyMovement, requireOwner } = require(`${__hooks}/utils.js`);
+    const { applyMovement, openBatch, requireOwner } = require(`${__hooks}/utils.js`);
     const { auth } = requireOwner(c);
     const poId = c.pathParam("id");
 
@@ -143,6 +165,23 @@ routerAdd(
           qty: qty,
           unit_cost: cost,
           reference: po.id,
+          created_by: auth.id,
+        });
+        // open a lot for the received goods, snapshotting the product's current
+        // selling price so the receipt is priced per-lot.
+        let sellPrice = null;
+        try {
+          sellPrice = tx.findRecordById("products", it.get("product")).getFloat("sell_price");
+        } catch (_) {
+          sellPrice = null;
+        }
+        openBatch(tx, {
+          product: it.get("product"),
+          qty: qty,
+          unit_cost: cost,
+          sell_price: sellPrice,
+          source_type: "purchase",
+          source_reference: po.id,
           created_by: auth.id,
         });
       }

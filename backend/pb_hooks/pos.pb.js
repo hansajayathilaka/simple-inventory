@@ -16,7 +16,8 @@ routerAdd(
   "POST",
   "/api/pos/checkout",
   (c) => {
-    const { applyMovement, nextNumber, money } = require(`${__hooks}/utils.js`);
+    const { applyMovement, consumeFIFO, oldestOpenBatchPrice, nextNumber, money } =
+      require(`${__hooks}/utils.js`);
     const info = $apis.requestInfo(c);
     const auth = info.authRecord;
     if (!auth) throw new UnauthorizedError("Authentication required.");
@@ -42,9 +43,13 @@ routerAdd(
         const product = tx.findRecordById("products", line.product);
         const qty = Number(line.qty);
         if (!(qty > 0)) throw new BadRequestError("Invalid quantity.");
+        // price precedence: explicit override -> oldest open lot's price ->
+        // product catalogue price.
         const unitPrice =
           line.unit_price != null
             ? Number(line.unit_price)
+            : oldestOpenBatchPrice(tx, product.id) != null
+            ? oldestOpenBatchPrice(tx, product.id)
             : product.getFloat("sell_price");
         const gross = money(qty * unitPrice);
         const discount = money(line.discount || 0);
@@ -62,6 +67,16 @@ routerAdd(
         item.set("discount", discount);
         item.set("tax_rate", taxRate);
         item.set("line_total", money(net + tax));
+        tx.saveRecord(item); // need the id to link consumed lots
+
+        // draw the sold qty from stock lots (FIFO) and record the true cost
+        const costTotal = consumeFIFO(tx, {
+          product: product.id,
+          qty: qty,
+          invoice_item: item.id,
+          created_by: auth.id,
+        });
+        item.set("cost_total", costTotal);
         tx.saveRecord(item);
 
         subtotal += gross;
@@ -124,6 +139,8 @@ routerAdd(
   (c) => {
     const {
       applyMovement,
+      openBatch,
+      returnUnitCost,
       nextNumber,
       money,
       sumReturnedQty,
@@ -185,6 +202,26 @@ routerAdd(
           type: "return",
           qty: qty,
           reference: ret.id,
+          created_by: auth.id,
+        });
+        // open a lot for the returned goods so they re-enter FIFO. Cost comes
+        // from the lots the item was originally sold from (falls back to the
+        // product cost for legacy lines with no lot links).
+        let retCost = returnUnitCost(tx, srcItem.id);
+        if (retCost == null) {
+          try {
+            retCost = tx.findRecordById("products", srcItem.get("product")).getFloat("cost_price") || 0;
+          } catch (_) {
+            retCost = 0;
+          }
+        }
+        openBatch(tx, {
+          product: srcItem.get("product"),
+          qty: qty,
+          unit_cost: retCost,
+          sell_price: unitPrice,
+          source_type: "return",
+          source_reference: ret.id,
           created_by: auth.id,
         });
       }
