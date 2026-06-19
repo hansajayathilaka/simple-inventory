@@ -4,8 +4,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import {
   inventoryService,
+  invoiceItemsService,
   invoicesService,
   productsService,
+  returnItemsService,
 } from "../../services";
 import { money, dateTime } from "../../lib/format";
 
@@ -26,6 +28,16 @@ export default function Dashboard() {
     queryFn: () => inventoryService.all({}),
     enabled: isOwner,
   });
+  const { data: invoiceItems } = useQuery({
+    queryKey: ["invoice_items"],
+    queryFn: () => invoiceItemsService.all({}),
+    enabled: isOwner,
+  });
+  const { data: returnItems } = useQuery({
+    queryKey: ["return_items"],
+    queryFn: () => returnItemsService.all({}),
+    enabled: isOwner,
+  });
 
   const stats = useMemo(() => {
     const startToday = new Date();
@@ -39,13 +51,37 @@ export default function Dashboard() {
       const inv = invMap.get(p.id);
       return inv && inv.reorder_level > 0 && inv.qty_on_hand <= inv.reorder_level;
     }).length;
+
+    // today's profit = revenue (ex-tax) − cost of goods, netted by returns
+    const todayIds = new Set(todays.map((i) => i.id));
+    const retQty = new Map<string, number>();
+    (returnItems ?? []).forEach((r) => {
+      if (!r.invoice_item) return;
+      retQty.set(r.invoice_item, (retQty.get(r.invoice_item) ?? 0) + (r.qty || 0));
+    });
+    let todayRevenue = 0;
+    let todayCost = 0;
+    (invoiceItems ?? []).forEach((it) => {
+      if (!todayIds.has(it.invoice)) return;
+      const qty = it.qty || 0;
+      if (qty <= 0) return;
+      const kept = Math.max(0, qty - (retQty.get(it.id) ?? 0));
+      if (kept <= 0) return;
+      todayRevenue += ((qty * (it.unit_price || 0) - (it.discount || 0)) / qty) * kept;
+      todayCost += ((it.cost_total || 0) / qty) * kept;
+    });
+    const todaysProfit = todayRevenue - todayCost;
+    const todaysMargin = todayRevenue > 0 ? (todaysProfit / todayRevenue) * 100 : 0;
+
     return {
       todaysTotal,
       todaysCount: todays.length,
       productCount: products?.length ?? 0,
       lowCount,
+      todaysProfit,
+      todaysMargin,
     };
-  }, [invoices, products, inventory]);
+  }, [invoices, products, inventory, invoiceItems, returnItems]);
 
   const recent = (invoices ?? []).filter((i) => i.status !== "draft").slice(0, 8);
 
@@ -72,6 +108,14 @@ export default function Dashboard() {
         </div>
         {isOwner && (
           <>
+            <div className="stat">
+              <div className="lbl">Today’s profit</div>
+              <div className="val">{money(stats.todaysProfit)}</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">Today’s margin</div>
+              <div className="val">{stats.todaysMargin.toFixed(1)}%</div>
+            </div>
             <div className="stat">
               <div className="lbl">Products</div>
               <div className="val">{stats.productCount}</div>
