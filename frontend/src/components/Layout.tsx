@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useSettings } from "../settings/SettingsContext";
@@ -64,6 +65,11 @@ export default function Layout() {
   const { features, companyName } = useSettings();
   const navigate = useNavigate();
 
+  // Collapsible groups — all expanded by default.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggle = (title: string) =>
+    setCollapsed((c) => ({ ...c, [title]: !c[title] }));
+
   const visible = (item: NavItem) =>
     (!item.ownerOnly || isOwner) && (!item.feature || features[item.feature]);
 
@@ -86,18 +92,31 @@ export default function Layout() {
           {GROUPS.map((g) => {
             const items = g.items.filter(visible);
             if (items.length === 0) return null;
+            const open = !collapsed[g.title];
             return (
               <div key={g.title} className="nav-group">
-                <div className="nav-group-title">{g.title}</div>
-                {items.map((n) => (
-                  <NavLink
-                    key={n.to}
-                    to={n.to}
-                    className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
-                  >
-                    {n.label}
-                  </NavLink>
-                ))}
+                <button
+                  type="button"
+                  className="nav-group-title"
+                  onClick={() => toggle(g.title)}
+                  aria-expanded={open}
+                >
+                  <span>{g.title}</span>
+                  <span className="nav-chevron">{open ? "▾" : "▸"}</span>
+                </button>
+                {open && (
+                  <div className="nav-group-items">
+                    {items.map((n) => (
+                      <NavLink
+                        key={n.to}
+                        to={n.to}
+                        className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                      >
+                        {n.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

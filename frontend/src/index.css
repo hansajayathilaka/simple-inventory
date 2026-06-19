@@ -37,6 +37,7 @@ body {
 .brand { font-weight: 700; font-size: 15px; color: #fff; padding: 6px 8px 16px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
 .nav-link {
+  display: block;
   color: #cdd7e6; text-decoration: none; padding: 8px 10px; border-radius: 8px;
   font-size: 13px;
 }
@@ -117,8 +118,16 @@ tbody tr:hover { background: #fafbfe; }
 
 /* grouped nav */
 .pos-launch { width: 100%; margin: 0 0 12px; }
-.nav-group { margin-top: 10px; }
-.nav-group-title { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #6b7c98; padding: 4px 10px 2px; }
+.nav-group { margin-top: 8px; }
+.nav-group-title {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: transparent; border: none; cursor: pointer;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: #8595b0; padding: 6px 10px; font-weight: 700;
+}
+.nav-group-title:hover { color: #cdd7e6; }
+.nav-chevron { font-size: 10px; }
+.nav-group-items { display: flex; flex-direction: column; gap: 2px; }
 
 /* pagination */
 .pagination { display: flex; justify-content: space-between; align-items: center; padding: 8px 2px; }
