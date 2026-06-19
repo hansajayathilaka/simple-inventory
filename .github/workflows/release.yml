@@ -28,10 +28,6 @@ jobs:
       - name: Build frontend
         run: npm run frontend:build
 
-      - name: Install Electron dependencies
-        run: npm install
-        working-directory: electron
-
       - name: Build & publish Electron app
         run: npx electron-builder --publish always
         working-directory: electron
