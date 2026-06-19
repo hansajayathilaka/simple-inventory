@@ -73,6 +73,27 @@ export default function InventoryPage() {
     onError: (e) => setError(errorMessage(e)),
   });
 
+  const [reorderEdits, setReorderEdits] = useState<Record<string, string>>({});
+  const saveReorder = useMutation({
+    mutationFn: (v: { product: string; level: number }) =>
+      stockService.setReorderLevel({ product: v.product, reorder_level: v.level }),
+    onSuccess: (_d, v) => {
+      setReorderEdits((e) => {
+        const next = { ...e };
+        delete next[v.product];
+        return next;
+      });
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+    },
+    onError: (e) => alert(errorMessage(e)),
+  });
+  const commitReorder = (productId: string) => {
+    const raw = reorderEdits[productId];
+    if (raw === undefined) return;
+    const level = Math.max(0, Number(raw) || 0);
+    saveReorder.mutate({ product: productId, level });
+  };
+
   const openModal = (p: Product, m: "restock" | "adjust") => {
     setTarget(p);
     setMode(m);
@@ -122,7 +143,30 @@ export default function InventoryPage() {
                   <td><code>{product.sku}</code></td>
                   <td>{product.name}</td>
                   <td className="num">{qty}</td>
-                  <td className="num">{reorder}</td>
+                  <td className="num">
+                    <input
+                      className="pos-num"
+                      type="number"
+                      min={0}
+                      value={reorderEdits[product.id] ?? String(reorder)}
+                      onChange={(e) =>
+                        setReorderEdits({ ...reorderEdits, [product.id]: e.target.value })
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitReorder(product.id);
+                      }}
+                    />
+                    {reorderEdits[product.id] !== undefined &&
+                      Number(reorderEdits[product.id]) !== reorder && (
+                        <button
+                          className="btn btn-sm btn-primary"
+                          style={{ marginLeft: 6 }}
+                          onClick={() => commitReorder(product.id)}
+                        >
+                          Save
+                        </button>
+                      )}
+                  </td>
                   <td>
                     {qty <= 0 ? (
                       <span className="badge danger">Out of stock</span>

@@ -143,6 +143,11 @@ tbody tr:hover { background: #fafbfe; }
 .pos-result { display: flex; justify-content: space-between; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
 .pos-result.active { background: var(--brand); color: #fff; }
 .pos-result.active code { color: #fff; }
+.pos-result-name { flex: 1; }
+.pos-result-meta { display: flex; gap: 12px; font-size: 12px; white-space: nowrap; }
+.pos-result-meta .pr-cost { color: var(--muted); }
+.pos-result.active .pos-result-meta .pr-cost { color: #dbe6ff; }
+.pos-result-meta .pr-qty { font-weight: 600; }
 .pos-right { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .pos-cart { flex: 1; overflow-y: auto; min-height: 0; }
 .pos-cart tr.row-selected { background: #eaf1ff; outline: 2px solid var(--brand); }

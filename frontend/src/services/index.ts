@@ -100,6 +100,11 @@ export const stockService = {
       "/api/inventory/adjust",
       { method: "POST", body }
     ),
+  setReorderLevel: (body: { product: string; reorder_level: number }) =>
+    pb.send<{ product: string; reorder_level: number }>(
+      "/api/inventory/reorder-level",
+      { method: "POST", body }
+    ),
   receivePurchaseOrder: (id: string) =>
     pb.send<{ id: string; status: string; total_cost: number }>(
       `/api/purchasing/receive/${id}`,

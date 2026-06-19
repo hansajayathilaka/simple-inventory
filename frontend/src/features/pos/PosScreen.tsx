@@ -3,7 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { useSettings } from "../../settings/SettingsContext";
-import { customersService, posService, productsService } from "../../services";
+import {
+  customersService,
+  inventoryService,
+  posService,
+  productsService,
+} from "../../services";
 import type { CheckoutResult, Product } from "../../types";
 import { errorMessage } from "../../lib/errors";
 import { buildReceiptHTML, type ReceiptLine } from "../../lib/receipt";
@@ -50,6 +55,15 @@ export default function PosScreen() {
     queryKey: ["customers"],
     queryFn: () => customersService.all({ sort: "name" }),
   });
+  const { data: inventory } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: () => inventoryService.all({}),
+  });
+  const qtyByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    (inventory ?? []).forEach((i) => m.set(i.product, i.qty_on_hand));
+    return m;
+  }, [inventory]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -357,10 +371,14 @@ export default function PosScreen() {
                       addToCart(p);
                     }}
                   >
-                    <span>
+                    <span className="pos-result-name">
                       <code>{p.sku}</code> {p.name}
                     </span>
-                    <span>{cur(p.sell_price)}</span>
+                    <span className="pos-result-meta">
+                      <span className="pr-sell">Sell {cur(p.sell_price)}</span>
+                      <span className="pr-cost">Buy {cur(p.cost_price ?? 0)}</span>
+                      <span className="pr-qty">Qty {qtyByProduct.get(p.id) ?? 0}</span>
+                    </span>
                   </div>
                 ))
               )}
@@ -474,18 +492,16 @@ export default function PosScreen() {
               <span>{cur(totals.subtotal)}</span>
             </div>
             <div className="row">
-              <span>
-                Invoice discount
-                <input
-                  className="pos-num"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={invoiceDiscount || ""}
-                  onChange={(e) => setInvoiceDiscount(Math.max(0, Number(e.target.value) || 0))}
-                  style={{ marginLeft: 8, width: 100 }}
-                />
-              </span>
+              <input
+                className="pos-num"
+                type="number"
+                min={0}
+                step="any"
+                placeholder="Discount"
+                value={invoiceDiscount || ""}
+                onChange={(e) => setInvoiceDiscount(Math.max(0, Number(e.target.value) || 0))}
+                style={{ width: 120, textAlign: "left" }}
+              />
               <span>-{cur(totals.discount)}</span>
             </div>
             <div className="row">
