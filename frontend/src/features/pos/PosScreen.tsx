@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { useSettings } from "../../settings/SettingsContext";
 import {
+  batchesService,
   customersService,
   inventoryService,
   posService,
@@ -65,6 +66,34 @@ export default function PosScreen() {
     return m;
   }, [inventory]);
 
+  // Current selling price per product = the price of the oldest open lot (the
+  // one FIFO will sell from). The catalogue price is only a fallback when no
+  // priced lot is in stock.
+  const { data: openLots } = useQuery({
+    queryKey: ["batches", "open"],
+    queryFn: () =>
+      batchesService.all({ filter: "qty_remaining > 0", sort: "received_at" }),
+  });
+  const lotPriceByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    // lots are sorted oldest-first, so the first priced lot we see per product
+    // is the one being sold.
+    (openLots ?? []).forEach((b) => {
+      if (!m.has(b.product) && (b.sell_price ?? 0) > 0)
+        m.set(b.product, b.sell_price as number);
+    });
+    return m;
+  }, [openLots]);
+  // ref so the stable addToCart callback always reads the latest prices.
+  const lotPriceRef = useRef(lotPriceByProduct);
+  useEffect(() => {
+    lotPriceRef.current = lotPriceByProduct;
+  }, [lotPriceByProduct]);
+  const priceFor = useCallback(
+    (p: Product) => lotPriceByProduct.get(p.id) ?? p.sell_price,
+    [lotPriceByProduct]
+  );
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -111,7 +140,8 @@ export default function PosScreen() {
         return next;
       }
       setSelected(prev.length);
-      return [...prev, { product: p, qty: 1, unit_price: p.sell_price, discount: 0 }];
+      const price = lotPriceRef.current.get(p.id) ?? p.sell_price;
+      return [...prev, { product: p, qty: 1, unit_price: price, discount: 0 }];
     });
     setQuery("");
     setHighlight(0);
@@ -161,6 +191,7 @@ export default function PosScreen() {
       });
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
 
       // auto-print receipt
       const lines: ReceiptLine[] = cart.map((l) => ({
@@ -375,7 +406,7 @@ export default function PosScreen() {
                       <code>{p.sku}</code> {p.name}
                     </span>
                     <span className="pos-result-meta">
-                      <span className="pr-sell">Sell {cur(p.sell_price)}</span>
+                      <span className="pr-sell">Sell {cur(priceFor(p))}</span>
                       <span className="pr-cost">Buy {cur(p.cost_price ?? 0)}</span>
                       <span className="pr-qty">Qty {qtyByProduct.get(p.id) ?? 0}</span>
                     </span>

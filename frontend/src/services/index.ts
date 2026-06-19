@@ -12,9 +12,11 @@ import type {
   Inventory,
   Invoice,
   InvoiceItem,
+  InvoiceItemBatch,
   LookupCollection,
   LookupItem,
   Product,
+  StockBatch,
   PurchaseOrder,
   PurchaseOrderItem,
   Return,
@@ -39,6 +41,9 @@ export const attributesService =
 export const productsService = collection<Product>("products");
 export const inventoryService = collection<Inventory>("inventory");
 export const movementsService = collection<StockMovement>("stock_movements");
+export const batchesService = collection<StockBatch>("stock_batches");
+export const invoiceItemBatchesService =
+  collection<InvoiceItemBatch>("invoice_item_batches");
 export const customersService = collection<Customer>("customers");
 export const invoicesService = collection<Invoice>("invoices");
 export const invoiceItemsService = collection<InvoiceItem>("invoice_items");
@@ -113,6 +118,7 @@ export const stockService = {
     product: string;
     qty: number;
     unit_cost?: number;
+    sell_price?: number;
     note?: string;
   }) =>
     pb.send<{ movement: string; qty_on_hand: number }>(

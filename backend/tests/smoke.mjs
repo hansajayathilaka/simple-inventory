@@ -116,6 +116,16 @@ async function main() {
   // restock (owner) then verify cashier cannot
   const restock = await api("POST", "/api/inventory/restock", { product: product.data.id, qty: 50, unit_cost: 60 }, ot);
   assert(restock.ok && restock.data.qty_on_hand === 50, "owner restock sets qty_on_hand to 50");
+
+  // restock opens a stock lot carrying its own cost + selling price
+  const lots1 = await api("GET", `/api/collections/stock_batches/records?filter=(product='${product.data.id}')`, null, ot);
+  assert(
+    lots1.data.items.length === 1 &&
+      lots1.data.items[0].qty_remaining === 50 &&
+      lots1.data.items[0].unit_cost === 60 &&
+      lots1.data.items[0].sell_price === 100,
+    "restock opens a lot (qty 50, cost 60, sell price defaults to product price 100)"
+  );
   const cashierRestock = await api("POST", "/api/inventory/restock", { product: product.data.id, qty: 5 }, ct);
   assert(!cashierRestock.ok, "cashier is blocked from restock");
 
@@ -132,6 +142,38 @@ async function main() {
   const invAfterSale = await api("GET", `/api/collections/inventory/records?filter=(product='${product.data.id}')`, null, ot);
   assert(invAfterSale.data.items[0].qty_on_hand === 47, "inventory decremented to 47 after sale");
 
+  // the sale drew 3 units from the lot (FIFO) and captured their cost (3 * 60)
+  const lotsAfterSale = await api("GET", `/api/collections/stock_batches/records?filter=(product='${product.data.id}')`, null, ot);
+  assert(lotsAfterSale.data.items[0].qty_remaining === 47, "lot drawn down to 47 remaining after sale");
+  const soldItems = await api("GET", `/api/collections/invoice_items/records?filter=(invoice='${checkout.data.id}')`, null, ot);
+  assert(soldItems.data.items[0].cost_total === 180, "invoice line captures FIFO cost_total of 180 (3 * 60)");
+
+  // --- FIFO across lots at different cost AND selling price ---
+  // Two lots for a fresh product, then a sale spanning both lots.
+  const fifoProd = await api(
+    "POST",
+    "/api/collections/products/records",
+    { sku: "SMOKE-FIFO", name: "FIFO Widget", sell_price: 99, base_uom: uom.data.id, is_active: true, attributes: { make: brand.data.id } },
+    ot
+  );
+  await api("POST", "/api/inventory/restock", { product: fifoProd.data.id, qty: 5, unit_cost: 10, sell_price: 20 }, ot);
+  await api("POST", "/api/inventory/restock", { product: fifoProd.data.id, qty: 5, unit_cost: 15, sell_price: 25 }, ot);
+  // sell 7 with NO unit_price -> price comes from the oldest open lot (20)
+  const fifoSale = await api(
+    "POST",
+    "/api/pos/checkout",
+    { items: [{ product: fifoProd.data.id, qty: 7 }], payment_method: "cash" },
+    ct
+  );
+  assert(fifoSale.ok && fifoSale.data.grand_total === 140, "checkout uses oldest lot's sell price (7 * 20 = 140)");
+  const fifoItems = await api("GET", `/api/collections/invoice_items/records?filter=(invoice='${fifoSale.data.id}')`, null, ot);
+  assert(fifoItems.data.items[0].cost_total === 80, "FIFO cost spans lots: 5*10 + 2*15 = 80");
+  const fifoLots = await api("GET", `/api/collections/stock_batches/records?filter=(product='${fifoProd.data.id}')&sort=received_at`, null, ot);
+  assert(
+    fifoLots.data.items[0].qty_remaining === 0 && fifoLots.data.items[1].qty_remaining === 3,
+    "oldest lot fully drawn (0), newer lot drawn to 3"
+  );
+
   // return 1 unit
   const items = await api("GET", `/api/collections/invoice_items/records?filter=(invoice='${checkout.data.id}')`, null, ct);
   const ret = await api(
@@ -144,6 +186,15 @@ async function main() {
 
   const invAfterReturn = await api("GET", `/api/collections/inventory/records?filter=(product='${product.data.id}')`, null, ot);
   assert(invAfterReturn.data.items[0].qty_on_hand === 48, "inventory restocked to 48 after return");
+
+  // the return opens a new lot for the goods coming back into stock
+  const lotsAfterReturn = await api("GET", `/api/collections/stock_batches/records?filter=(product='${product.data.id}' %26%26 source_type='return')`, null, ot);
+  assert(
+    lotsAfterReturn.data.items.length === 1 &&
+      lotsAfterReturn.data.items[0].qty_remaining === 1 &&
+      lotsAfterReturn.data.items[0].unit_cost === 60,
+    "return opens a lot (qty 1) priced at the original FIFO cost (60)"
+  );
 
   const invoice2 = await api("GET", `/api/collections/invoices/records/${checkout.data.id}`, null, ot);
   assert(invoice2.data.status === "partially_returned", "invoice status becomes partially_returned");

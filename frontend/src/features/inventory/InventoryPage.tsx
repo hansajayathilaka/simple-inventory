@@ -4,12 +4,14 @@ import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
 import { usePaginatedList } from "../../hooks/usePaginatedList";
 import {
+  batchesService,
   inventoryService,
   productsService,
   stockService,
 } from "../../services";
-import type { Inventory, Product } from "../../types";
+import type { Inventory, Product, StockBatch } from "../../types";
 import { errorMessage } from "../../lib/errors";
+import { money as fmtMoney, date as fmtDate } from "../../lib/format";
 
 interface Row {
   product: Product;
@@ -23,9 +25,11 @@ export default function InventoryPage() {
   const [target, setTarget] = useState<Product | null>(null);
   const [qty, setQty] = useState("");
   const [cost, setCost] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [lotsTarget, setLotsTarget] = useState<Product | null>(null);
 
   const q = search.trim().replace(/["\\]/g, "");
   const filter = q ? `(name ~ "${q}" || sku ~ "${q}")` : undefined;
@@ -62,15 +66,28 @@ export default function InventoryPage() {
           product: target.id,
           qty: Number(qty),
           unit_cost: cost === "" ? undefined : Number(cost),
+          sell_price: sellPrice === "" ? undefined : Number(sellPrice),
           note,
         });
       return stockService.adjust({ product: target.id, qty: Number(qty), note });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
       setMode(null);
     },
     onError: (e) => setError(errorMessage(e)),
+  });
+
+  // Stock lots for the product whose "Lots" view is open.
+  const { data: lots } = useQuery({
+    queryKey: ["batches", lotsTarget?.id],
+    enabled: !!lotsTarget,
+    queryFn: () =>
+      batchesService.all({
+        filter: `product = "${lotsTarget!.id}"`,
+        sort: "received_at",
+      }),
   });
 
   const [reorderEdits, setReorderEdits] = useState<Record<string, string>>({});
@@ -99,6 +116,7 @@ export default function InventoryPage() {
     setMode(m);
     setQty("");
     setCost("");
+    setSellPrice("");
     setNote("");
     setError("");
   };
@@ -184,6 +202,9 @@ export default function InventoryPage() {
                       <button className="btn btn-sm" onClick={() => openModal(product, "adjust")}>
                         Adjust
                       </button>
+                      <button className="btn btn-sm" onClick={() => setLotsTarget(product)}>
+                        Lots
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -227,15 +248,27 @@ export default function InventoryPage() {
             />
           </div>
           {mode === "restock" && (
-            <div className="field">
-              <label>Unit cost (optional)</label>
-              <input
-                type="number"
-                step="any"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-              />
-            </div>
+            <>
+              <div className="field">
+                <label>Unit cost (optional)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Selling price for this lot (optional)</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Defaults to the product's price"
+                  value={sellPrice}
+                  onChange={(e) => setSellPrice(e.target.value)}
+                />
+              </div>
+            </>
           )}
           <div className="field">
             <label>Note {mode === "adjust" ? "(required)" : ""}</label>
@@ -254,6 +287,49 @@ export default function InventoryPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        title={`Stock lots — ${lotsTarget?.name ?? ""}`}
+        open={lotsTarget !== null}
+        onClose={() => setLotsTarget(null)}
+      >
+        <div className="muted" style={{ marginBottom: 8 }}>
+          Lots are sold oldest-first (FIFO). The first lot with stock remaining
+          sets the selling price at the till.
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Source</th>
+              <th className="num">Remaining</th>
+              <th className="num">Received</th>
+              <th className="num">Unit cost</th>
+              <th className="num">Sell price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(lots ?? []).length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  No stock lots yet.
+                </td>
+              </tr>
+            ) : (
+              (lots ?? []).map((b: StockBatch) => (
+                <tr key={b.id} className={b.qty_remaining <= 0 ? "muted" : ""}>
+                  <td>{fmtDate(b.received_at)}</td>
+                  <td>{b.source_type}</td>
+                  <td className="num">{b.qty_remaining}</td>
+                  <td className="num">{b.qty_received}</td>
+                  <td className="num">{fmtMoney(b.unit_cost)}</td>
+                  <td className="num">{fmtMoney(b.sell_price)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </Modal>
     </div>
   );
