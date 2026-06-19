@@ -12,8 +12,11 @@ import {
 } from "../../services";
 import type { PurchaseOrder } from "../../types";
 import { errorMessage } from "../../lib/errors";
-import { money, date } from "../../lib/format";
+import { money, date, dateTime } from "../../lib/format";
 import { useAuth } from "../../auth/AuthContext";
+
+const statusBadge = (status: string) =>
+  status === "received" ? "badge ok" : status === "cancelled" ? "badge danger" : "badge warn";
 
 interface Line {
   product: string;
@@ -25,6 +28,7 @@ export default function PurchasingPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [viewId, setViewId] = useState<string | null>(null);
   const [supplier, setSupplier] = useState("");
   const [reference, setReference] = useState("");
   const [lines, setLines] = useState<Line[]>([{ product: "", qty: "", unit_cost: "" }]);
@@ -48,6 +52,21 @@ export default function PurchasingPage() {
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: () => productsService.all({ sort: "name" }),
+  });
+  const { data: viewPo } = useQuery({
+    queryKey: ["purchase_order", viewId],
+    queryFn: () => purchaseOrdersService.one(viewId as string, "supplier,created_by"),
+    enabled: !!viewId,
+  });
+  const { data: viewItems } = useQuery({
+    queryKey: ["purchase_order_items", viewId],
+    queryFn: () =>
+      purchaseOrderItemsService.all({
+        filter: `purchase_order = "${viewId}"`,
+        expand: "product",
+        sort: "created",
+      }),
+    enabled: !!viewId,
   });
 
   const create = useMutation({
@@ -74,18 +93,22 @@ export default function PurchasingPage() {
       }
       return po;
     },
-    onSuccess: () => {
+    onSuccess: (po) => {
       qc.invalidateQueries({ queryKey: ["purchase_orders"] });
       setOpen(false);
+      setViewId(po.id);
     },
     onError: (e) => setError(errorMessage(e)),
   });
 
   const receive = useMutation({
     mutationFn: (id: string) => stockService.receivePurchaseOrder(id),
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["purchase_orders"] });
+      qc.invalidateQueries({ queryKey: ["purchase_order", id] });
+      qc.invalidateQueries({ queryKey: ["purchase_order_items", id] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
     },
     onError: (e) => alert(errorMessage(e)),
   });
@@ -143,17 +166,22 @@ export default function PurchasingPage() {
                 </td>
                 <td className="num">{money(po.total_cost)}</td>
                 <td>
-                  {po.status === "draft" && (
-                    <button
-                      className="btn btn-sm btn-primary"
-                      disabled={receive.isPending}
-                      onClick={() => {
-                        if (confirm("Receive this PO into stock?")) receive.mutate(po.id);
-                      }}
-                    >
-                      Receive
+                  <div className="row-actions">
+                    <button className="btn btn-sm" onClick={() => setViewId(po.id)}>
+                      View
                     </button>
-                  )}
+                    {po.status === "draft" && (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        disabled={receive.isPending}
+                        onClick={() => {
+                          if (confirm("Receive this PO into stock?")) receive.mutate(po.id);
+                        }}
+                      >
+                        Receive
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -281,6 +309,115 @@ export default function PurchasingPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        title="Purchase order"
+        open={viewId !== null}
+        onClose={() => setViewId(null)}
+        width={680}
+      >
+        {!viewPo ? (
+          <div className="empty">Loading…</div>
+        ) : (
+          <>
+            <div className="grid grid-2">
+              <div>
+                <div>
+                  Supplier:{" "}
+                  <strong>
+                    {(viewPo.expand?.supplier as { name?: string })?.name ?? "—"}
+                  </strong>
+                </div>
+                <div>Reference: {viewPo.reference || "—"}</div>
+                <div>
+                  Status:{" "}
+                  <span className={statusBadge(viewPo.status)}>{viewPo.status}</span>
+                </div>
+              </div>
+              <div>
+                <div>Created: {dateTime(viewPo.created)}</div>
+                <div>
+                  Received: {viewPo.received_at ? dateTime(viewPo.received_at) : "—"}
+                </div>
+                <div>
+                  Created by:{" "}
+                  {(viewPo.expand?.created_by as { name?: string })?.name ?? "—"}
+                </div>
+              </div>
+            </div>
+            {viewPo.note && <p style={{ marginTop: 8 }}>Note: {viewPo.note}</p>}
+
+            <h3 style={{ margin: "12px 0 8px" }}>Items</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th className="num">Qty</th>
+                  <th className="num">Unit cost</th>
+                  <th className="num">Line total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(viewItems ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="empty">
+                      No items.
+                    </td>
+                  </tr>
+                ) : (
+                  (viewItems ?? []).map((it) => (
+                    <tr key={it.id}>
+                      <td>{(it.expand?.product as { name?: string })?.name ?? "—"}</td>
+                      <td className="num">{it.qty}</td>
+                      <td className="num">{money(it.unit_cost)}</td>
+                      <td className="num">
+                        {money(it.line_total ?? it.qty * it.unit_cost)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {(viewItems ?? []).length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={3} className="num">
+                      <strong>Total</strong>
+                    </td>
+                    <td className="num">
+                      <strong>
+                        {money(
+                          viewPo.total_cost ??
+                            (viewItems ?? []).reduce(
+                              (s, it) => s + (it.line_total ?? it.qty * it.unit_cost),
+                              0
+                            )
+                        )}
+                      </strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+
+            <div className="inline" style={{ justifyContent: "flex-end", marginTop: 14 }}>
+              <button className="btn" onClick={() => setViewId(null)}>
+                Close
+              </button>
+              {viewPo.status === "draft" && (
+                <button
+                  className="btn btn-primary"
+                  disabled={receive.isPending}
+                  onClick={() => {
+                    if (confirm("Receive this PO into stock?")) receive.mutate(viewPo.id);
+                  }}
+                >
+                  {receive.isPending ? "Receiving…" : "Receive into stock"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );
