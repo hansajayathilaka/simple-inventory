@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "description": "Electron desktop wrapper bundling PocketBase + the React UI",
+  "author": "Simple Inventory",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
+    "electron": "31.0.0",
     "electron-builder": "^24.13.3"
   },
   "build": {
