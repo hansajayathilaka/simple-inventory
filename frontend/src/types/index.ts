@@ -51,6 +51,20 @@ export type AttributeType =
   | "select"
   | "relation";
 
+// Registry row for an owner-created reference collection (a "custom lookup").
+// `name` is the real PocketBase collection name (e.g. "lk_color").
+export interface LookupCollection extends RecordModel {
+  name: string;
+  label: string;
+}
+
+// A generic reference-list row. Built-in and custom lookups all share this
+// minimal shape (name + optional description) for CRUD purposes.
+export interface LookupItem extends RecordModel {
+  name: string;
+  description?: string;
+}
+
 export interface AttributeDefinition extends RecordModel {
   key: string;
   label: string;

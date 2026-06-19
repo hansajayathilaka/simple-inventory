@@ -11,6 +11,10 @@ release/
 
 # PocketBase runtime, binary & bundled docs from the release zip
 backend/pb_data/
+# Auto-generated migrations for owner-created custom lists (lk_*). PocketBase's
+# automigrate persists these into each install's own environment at runtime;
+# they are per-install artifacts and must never be committed to the repo.
+backend/pb_migrations/*_lk_*.js
 backend/pocketbase
 backend/pocketbase.exe
 backend/CHANGELOG.md

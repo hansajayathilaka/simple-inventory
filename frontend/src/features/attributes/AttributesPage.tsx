@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
-import { attributesService, lookupServices } from "../../services";
+import {
+  attributesService,
+  BUILTIN_LOOKUPS,
+  customLookupsService,
+} from "../../services";
 import type { AttributeDefinition, AttributeType } from "../../types";
 import { errorMessage } from "../../lib/errors";
 
@@ -13,7 +17,6 @@ const TYPES: AttributeType[] = [
   "select",
   "relation",
 ];
-const LOOKUP_TARGETS = Object.keys(lookupServices);
 
 interface FormState {
   key: string;
@@ -48,6 +51,16 @@ export default function AttributesPage() {
     queryKey: ["attribute_definitions"],
     queryFn: () => attributesService.all({ sort: "sort_order,label" }),
   });
+
+  // Relation targets = built-in lists + any owner-created custom lists.
+  const { data: customLookups } = useQuery({
+    queryKey: ["lookup_collections"],
+    queryFn: () => customLookupsService.list(),
+  });
+  const relationTargets = [
+    ...BUILTIN_LOOKUPS,
+    ...(customLookups ?? []).map((l) => ({ name: l.name, label: l.label })),
+  ];
 
   const save = useMutation({
     mutationFn: () => {
@@ -150,7 +163,8 @@ export default function AttributesPage() {
                   <td><span className="badge">{a.type}</span></td>
                   <td>
                     {a.type === "relation"
-                      ? a.target_collection
+                      ? relationTargets.find((t) => t.name === a.target_collection)
+                          ?.label ?? a.target_collection
                       : a.type === "select"
                       ? (a.options?.values ?? []).join(", ")
                       : "—"}
@@ -238,9 +252,9 @@ export default function AttributesPage() {
                 required
               >
                 <option value="">— choose —</option>
-                {LOOKUP_TARGETS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {relationTargets.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.label}
                   </option>
                 ))}
               </select>

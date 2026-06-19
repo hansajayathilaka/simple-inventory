@@ -12,6 +12,8 @@ import type {
   Inventory,
   Invoice,
   InvoiceItem,
+  LookupCollection,
+  LookupItem,
   Product,
   PurchaseOrder,
   PurchaseOrderItem,
@@ -60,13 +62,35 @@ export const settingsService = {
     pb.collection("app_settings").update<AppSettings>(id, data),
 };
 
-// Map a lookup collection name to its service (used by dynamic relation attrs).
-export const lookupServices: Record<string, ReturnType<typeof collection>> = {
-  categories: categoriesService,
-  uom: uomService,
-  brands: brandsService,
-  ingredients: ingredientsService,
-  suppliers: suppliersService,
+// Built-in reference lists that ship with the app, with display labels. These
+// plus any owner-created custom lists are valid targets for relation attributes.
+export const BUILTIN_LOOKUPS: { name: string; label: string }[] = [
+  { name: "categories", label: "Categories" },
+  { name: "uom", label: "Units of Measure" },
+  { name: "brands", label: "Brands / Makes" },
+  { name: "ingredients", label: "Ingredients" },
+  { name: "suppliers", label: "Suppliers" },
+];
+
+// Resolve a CRUD service for ANY lookup collection name — a built-in list
+// (categories, uom, brands, ...) or a custom `lk_*` collection created at
+// runtime. Both share the minimal LookupItem shape for CRUD purposes.
+export const lookupService = (name: string) => collection<LookupItem>(name);
+
+// Owner-managed custom reference collections (real PocketBase collections
+// created at runtime via the pb_hooks/lookups.pb.js routes).
+export const customLookupsService = {
+  list: () => pb.send<LookupCollection[]>("/api/lookups", { method: "GET" }),
+  create: (label: string) =>
+    pb.send<{ name: string; label: string }>("/api/lookups", {
+      method: "POST",
+      body: { label },
+    }),
+  remove: (name: string) =>
+    pb.send<{ name: string; deleted: boolean }>(
+      `/api/lookups/${encodeURIComponent(name)}`,
+      { method: "DELETE" }
+    ),
 };
 
 // --- Custom server-side routes (business logic) ---
