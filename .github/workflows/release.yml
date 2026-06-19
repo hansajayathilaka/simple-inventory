@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm install
 
       - name: Download PocketBase (Windows)
@@ -29,7 +29,12 @@ jobs:
       - name: Build frontend
         run: npm run frontend:build
 
+      - name: Install Electron dependencies
+        run: npm install
+        working-directory: electron
+
       - name: Build & publish Electron app
-        run: npm --workspace electron run dist -- --publish always
+        run: npx electron-builder --publish always
+        working-directory: electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

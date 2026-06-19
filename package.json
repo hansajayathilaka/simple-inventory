@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Shop management & POS system (PocketBase + React + Electron)",
+  "repository": "http://github.com/hansajayathilaka/simple-inventory",
   "workspaces": [
     "frontend",
     "electron"
