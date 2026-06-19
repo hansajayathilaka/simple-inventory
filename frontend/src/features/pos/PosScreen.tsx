@@ -10,7 +10,8 @@ import {
   posService,
   productsService,
 } from "../../services";
-import type { CheckoutResult, Product } from "../../types";
+import { SearchSelect } from "../../components/SearchSelect";
+import type { CheckoutResult, Customer, Product } from "../../types";
 import { errorMessage } from "../../lib/errors";
 import { buildReceiptHTML, type ReceiptLine } from "../../lib/receipt";
 import { printHTML } from "../../lib/print";
@@ -41,6 +42,7 @@ export default function PosScreen() {
   const [tendered, setTendered] = useState("");
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]>("cash");
   const [customer, setCustomer] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<CheckoutResult | null>(null);
@@ -51,10 +53,6 @@ export default function PosScreen() {
   const { data: products } = useQuery({
     queryKey: ["products", "active"],
     queryFn: () => productsService.all({ sort: "name", filter: "is_active = true" }),
-  });
-  const { data: customers } = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => customersService.all({ sort: "name" }),
   });
   const { data: inventory } = useQuery({
     queryKey: ["inventory"],
@@ -205,7 +203,7 @@ export default function PosScreen() {
         number: res.number,
         date: new Date().toLocaleString(),
         cashier: user?.name,
-        customer: customers?.find((c) => c.id === customer)?.name,
+        customer: customerName || undefined,
         lines,
         subtotal: totals.subtotal,
         discount: totals.discount,
@@ -225,13 +223,14 @@ export default function PosScreen() {
       setInvoiceDiscount(0);
       setTendered("");
       setCustomer("");
+      setCustomerName("");
       setSelected(0);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
-  }, [cart, busy, customer, payment, invoiceDiscount, tendered, settings, user, customers, totals, qc]);
+  }, [cart, busy, customer, customerName, payment, invoiceDiscount, tendered, settings, user, totals, qc]);
 
   const newSale = useCallback(() => {
     setDone(null);
@@ -545,18 +544,16 @@ export default function PosScreen() {
           </div>
 
           <div className="pos-pay">
-            <select
+            <SearchSelect<Customer>
+              service={customersService}
+              searchFields={["name", "phone"]}
               value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              tabIndex={-1}
-            >
-              <option value="">Walk-in customer</option>
-              {(customers ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={(id, rec) => {
+                setCustomer(id);
+                setCustomerName(rec?.name ?? "");
+              }}
+              placeholder="Walk-in customer"
+            />
             <select
               value={payment}
               onChange={(e) => setPayment(e.target.value as (typeof PAYMENTS)[number])}

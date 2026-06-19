@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { lookupService } from "../../services";
-import type { AttributeDefinition } from "../../types";
+import { SearchSelect, MultiSearchSelect } from "../../components/SearchSelect";
+import type { AttributeDefinition, LookupItem } from "../../types";
 
 // Renders a single product-attribute input driven by its definition.
 // Relation attributes load their options from the referenced lookup collection.
@@ -15,12 +16,8 @@ export default function DynamicAttributeField({
 }) {
   const isRelation = def.type === "relation";
   const target = def.target_collection ?? "";
-
-  const { data: options } = useQuery({
-    queryKey: ["lookup", target],
-    queryFn: () => lookupService(target).all({ sort: "name" }),
-    enabled: isRelation && !!target,
-  });
+  // stable service for the referenced lookup collection (used by relation fields)
+  const relationService = useMemo(() => lookupService(target), [target]);
 
   const label = (
     <label>
@@ -118,43 +115,32 @@ export default function DynamicAttributeField({
   }
 
   if (isRelation) {
-    const opts = options ?? [];
     if (def.is_multiple) {
       const arr = Array.isArray(value) ? (value as string[]) : [];
       return (
         <div className="field">
           {label}
-          <select
-            multiple
+          <MultiSearchSelect<LookupItem>
+            service={relationService}
+            searchFields={["name"]}
             value={arr}
-            onChange={(e) =>
-              onChange(Array.from(e.target.selectedOptions).map((o) => o.value))
-            }
-          >
-            {opts.map((o) => (
-              <option key={o.id} value={o.id}>
-                {(o as { name?: string }).name ?? o.id}
-              </option>
-            ))}
-          </select>
+            onChange={onChange}
+            placeholder="Search…"
+          />
         </div>
       );
     }
     return (
       <div className="field">
         {label}
-        <select
+        <SearchSelect<LookupItem>
+          service={relationService}
+          searchFields={["name"]}
           value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(id) => onChange(id)}
           required={def.is_required}
-        >
-          <option value="">—</option>
-          {opts.map((o) => (
-            <option key={o.id} value={o.id}>
-              {(o as { name?: string }).name ?? o.id}
-            </option>
-          ))}
-        </select>
+          placeholder="Search…"
+        />
       </div>
     );
   }

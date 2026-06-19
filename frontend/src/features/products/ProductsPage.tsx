@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
+import { SearchSelect } from "../../components/SearchSelect";
 import { usePaginatedList } from "../../hooks/usePaginatedList";
 import DynamicAttributeField from "./DynamicAttributeField";
 import {
@@ -10,7 +11,7 @@ import {
   productsService,
   uomService,
 } from "../../services";
-import type { Product } from "../../types";
+import type { Category, Product, Uom } from "../../types";
 import { errorMessage } from "../../lib/errors";
 import { money } from "../../lib/format";
 
@@ -67,14 +68,6 @@ export default function ProductsPage() {
     sort: "name",
     expand: "category,base_uom",
     filter,
-  });
-  const { data: categories } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => categoriesService.all({ sort: "name" }),
-  });
-  const { data: uoms } = useQuery({
-    queryKey: ["uom"],
-    queryFn: () => uomService.all({ sort: "name" }),
   });
   const { data: attrDefs } = useQuery({
     queryKey: ["attribute_definitions"],
@@ -276,31 +269,24 @@ export default function ProductsPage() {
           <div className="grid grid-2">
             <div className="field">
               <label>Category</label>
-              <select
+              <SearchSelect<Category>
+                service={categoriesService}
+                searchFields={["name"]}
                 value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              >
-                <option value="">—</option>
-                {(categories ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(id) => setForm({ ...form, category: id })}
+                placeholder="Search category…"
+              />
             </div>
             <div className="field">
               <label>Base unit</label>
-              <select
+              <SearchSelect<Uom>
+                service={uomService}
+                searchFields={["name", "abbreviation"]}
+                getLabel={(u) => `${u.name} (${u.abbreviation})`}
                 value={form.base_uom}
-                onChange={(e) => setForm({ ...form, base_uom: e.target.value })}
-              >
-                <option value="">—</option>
-                {(uoms ?? []).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.abbreviation})
-                  </option>
-                ))}
-              </select>
+                onChange={(id) => setForm({ ...form, base_uom: id })}
+                placeholder="Search unit…"
+              />
             </div>
           </div>
           <div className="grid grid-3">

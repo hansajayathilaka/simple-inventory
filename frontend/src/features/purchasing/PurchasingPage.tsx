@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Modal from "../../components/Modal";
 import Pagination from "../../components/Pagination";
+import { SearchSelect } from "../../components/SearchSelect";
 import { usePaginatedList } from "../../hooks/usePaginatedList";
 import {
   productsService,
@@ -10,7 +11,7 @@ import {
   stockService,
   suppliersService,
 } from "../../services";
-import type { PurchaseOrder } from "../../types";
+import type { Product, PurchaseOrder, Supplier } from "../../types";
 import { errorMessage } from "../../lib/errors";
 import { money, date, dateTime } from "../../lib/format";
 import { useAuth } from "../../auth/AuthContext";
@@ -44,14 +45,6 @@ export default function PurchasingPage() {
   } = usePaginatedList<PurchaseOrder>(purchaseOrdersService, ["purchase_orders"], {
     sort: "-created",
     expand: "supplier",
-  });
-  const { data: suppliers } = useQuery({
-    queryKey: ["suppliers"],
-    queryFn: () => suppliersService.all({ sort: "name" }),
-  });
-  const { data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: () => productsService.all({ sort: "name" }),
   });
   const { data: viewPo } = useQuery({
     queryKey: ["purchase_order", viewId],
@@ -209,14 +202,14 @@ export default function PurchasingPage() {
           <div className="grid grid-2">
             <div className="field">
               <label>Supplier *</label>
-              <select value={supplier} onChange={(e) => setSupplier(e.target.value)} required>
-                <option value="">—</option>
-                {(suppliers ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect<Supplier>
+                service={suppliersService}
+                searchFields={["name"]}
+                value={supplier}
+                onChange={setSupplier}
+                required
+                placeholder="Search supplier…"
+              />
             </div>
             <div className="field">
               <label>Reference</label>
@@ -238,21 +231,18 @@ export default function PurchasingPage() {
               {lines.map((l, i) => (
                 <tr key={i}>
                   <td>
-                    <select
+                    <SearchSelect<Product>
+                      service={productsService}
+                      searchFields={["name", "sku", "barcode"]}
+                      getLabel={(p) => `${p.name} (${p.sku})`}
                       value={l.product}
-                      onChange={(e) => {
+                      onChange={(id) => {
                         const next = [...lines];
-                        next[i].product = e.target.value;
+                        next[i].product = id;
                         setLines(next);
                       }}
-                    >
-                      <option value="">—</option>
-                      {(products ?? []).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Search product…"
+                    />
                   </td>
                   <td>
                     <input
