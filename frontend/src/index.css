@@ -226,3 +226,38 @@ tbody tr:hover { background: #fafbfe; }
 }
 .ss-chip-x { cursor: pointer; color: var(--muted); font-size: 10px; }
 .ss-chip-x:hover { color: var(--danger); }
+
+/* ===== Redesigned POS (left editor / right read-only summary) ===== */
+.pos-left { gap: 10px; overflow-y: auto; }
+.pos-left-empty { margin-top: 8px; }
+.pos-editor { display: flex; flex-direction: column; gap: 10px; }
+
+/* left: read-only product detail card */
+.pos-detail { margin: 0; padding: 14px; }
+.pos-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.pos-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin: 0; }
+.pos-detail-row { display: flex; flex-direction: column; }
+.pos-detail-row dt { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.pos-detail-row dd { margin: 0; font-size: 14px; font-weight: 600; }
+
+/* left: stock-lot picker */
+.pos-lots { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.pos-lots-head { font-weight: 600; margin-bottom: 6px; }
+.pos-lots-table th, .pos-lots-table td { padding: 6px 8px; }
+.pos-lots-table tbody tr { cursor: pointer; }
+.pos-lots-table tr.row-selected { background: #eaf1ff; outline: 2px solid var(--brand); }
+
+/* left: line editor */
+.pos-line-editor { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.pos-line-editor .field { margin: 0; }
+.pos-line-total { font-size: 18px; font-weight: 700; padding: 8px 0; }
+.pos-line-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.pos-line-actions .btn { flex: 1; }
+
+/* right: read-only bill summary on top, checkout on the bottom */
+.pos-summary { flex: 1; min-height: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; outline: none; }
+.pos-summary:focus { box-shadow: 0 0 0 2px rgba(47,109,246,.35); }
+.pos-summary-table th { position: sticky; top: 0; background: #fff; z-index: 1; }
+.pos-summary-table tbody tr { cursor: pointer; }
+.pos-summary-table tr.row-selected { background: #eaf1ff; outline: 2px solid var(--brand); }
+.pos-checkout { margin-top: 10px; }
