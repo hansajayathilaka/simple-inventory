@@ -4,9 +4,14 @@
 
 	// 👇 Features to add to the Dev Container. More info: https://containers.dev/implementors/features.
 	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/prulloac/devcontainer-features/bun:1": {},
-		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "latest",
+			"nodeGypDependencies": true,
+			"installYarnUsingApt": false
+		},
 		"ghcr.io/devcontainers/features/go:1": {
 			"version": "latest",
 			"golangciLintVersion": "latest"
